@@ -5,6 +5,7 @@ edition = "2021"
 description = "Simple and fast crate for writing JSON to a string without creating intermediate objects"
 license = "Unlicense"
 categories = [ "encoding" ]
+repository = "https://github.com/zotta/json-writer-rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
