@@ -902,5 +902,5 @@ fn test_encoding() {
 		let json = to_json_string(c.to_string().as_str());
 		assert!(&json[0..2] == "\"\\");
 	}
-	assert_eq!(to_json_string("</script >\0"), "<\\/script >\\u0000");
+	assert_eq!(to_json_string("</script >\0\x1F"), "\"<\\/script >\\u0000\\u001F\"");
 }
