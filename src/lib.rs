@@ -75,6 +75,7 @@
 //! Example:
 //! 
 //! ```
+//! use json_writer::JSONArrayWriter;
 //! fn write_numbers(file: &mut std::fs::File) -> std::io::Result<()> {
 //! 	let mut buffer = String::new();
 //! 	let mut array = JSONArrayWriter::new(&mut buffer);
@@ -374,6 +375,13 @@ impl JSONWriterValue for &str {
 	}
 }
 
+impl JSONWriterValue for &std::borrow::Cow<'_, str> {
+	#[inline(always)]
+	fn write_json(self, output_buffer: &mut String) {
+		write_string(output_buffer, std::convert::AsRef::as_ref(self));
+	}
+}
+
 impl JSONWriterValue for &String {
 	#[inline(always)]
 	fn write_json(self, output_buffer: &mut String) {
@@ -566,9 +574,17 @@ pub fn write_part_of_string(output_buffer: &mut String, input: &str) {
 
 
 const fn get_replacements() -> [u8; 256] {
-	// NOTE: only characters smaller than 128 are allowed here
+	// NOTE: Only characters smaller than 128 are allowed here.
+	// Trying to escape values above 128 would generate invalid utf-8 output
+	// ----- 
 	// see https://www.json.org/json-en.html
 	let mut result = [0u8; 256];
+	// Escape everything from 0 to 0x1F
+	let mut i = 0;
+	while i < 0x20 {
+		result[i] = b'u';
+		i += 1;
+	};
 	result[b'\"' as usize] = b'"';
 	result[b'\\' as usize] = b'\\';
 	result[b'/' as usize] = b'/';
@@ -877,4 +893,14 @@ fn test_write_numbers(file: &mut std::fs::File) -> std::io::Result<()> {
 	std::io::Write::write_all(file, buffer.as_bytes())?;
 
 	return Ok(());
+}
+
+#[test]
+fn test_encoding() {
+	for c in 0x00..0x20 {
+		let c = char::from(c);
+		let json = to_json_string(c.to_string().as_str());
+		assert!(&json[0..2] == "\"\\");
+	}
+	assert_eq!(to_json_string("</script >\0"), "<\\/script >\\u0000");
 }
