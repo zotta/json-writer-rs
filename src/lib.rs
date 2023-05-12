@@ -1,4 +1,3 @@
-
 #![warn(missing_docs)]
 
 //!
@@ -130,7 +129,7 @@
 /// Appends '{' on creation.
 /// Appends '}' when dropped.
 /// 
-pub struct JSONObjectWriter<'a> {
+pub struct JSONObjectWriter<'a, F: Formatter> {
 	/// 
 	/// Mutable borrow of buffer
 	/// 
@@ -138,7 +137,8 @@ pub struct JSONObjectWriter<'a> {
 	/// This field should not be used unless you know what you are doing.
 	/// 
 	pub buffer: &'a mut String,
-	empty: bool
+	empty: bool,
+	formatter: F,
 }
 
 ///
@@ -147,7 +147,7 @@ pub struct JSONObjectWriter<'a> {
 /// Appends '[' on creation.
 /// Appends ']' when dropped.
 /// 
-pub struct JSONArrayWriter<'a> {
+pub struct JSONArrayWriter<'a, F: Formatter> {
 	/// 
 	/// Mutable borrow of buffer
 	/// 
@@ -155,7 +155,8 @@ pub struct JSONArrayWriter<'a> {
 	/// This field should not be used unless you know what you are doing.
 	/// 
 	pub buffer: &'a mut String,
-	empty: bool
+	empty: bool,
+	formatter: F,
 }
 
 #[doc(hidden)]
@@ -169,15 +170,23 @@ pub struct Null();
 /// 
 pub static NULL: Null = Null();
 
-impl JSONObjectWriter<'_> {
-	
+impl JSONObjectWriter<'_, CompactFormatter> {
 	///
 	/// Creates a new JSONObjectWriter that writes to the given buffer. Writes '{' to the buffer immediately.
+	/// Uses [`CompactFormatter`].
 	/// 
 	#[inline(always)]
-	pub fn new<'a>(buffer: &'a mut String) -> JSONObjectWriter<'a> {
-		buffer.push('{');
-		JSONObjectWriter { buffer: buffer, empty: true }
+	pub fn new(buffer: &mut String) -> JSONObjectWriter<CompactFormatter> {
+		JSONObjectWriter::with_formatter(buffer, CompactFormatter{})
+	}
+
+}
+
+impl<F: Formatter> JSONObjectWriter<'_, F> {
+	/// Creates a new writer with the specified `formatter`.
+	pub fn with_formatter<'a>(buffer: &'a mut String, mut formatter: F) -> JSONObjectWriter<'a, F> {
+		formatter.begin_object(buffer);
+		JSONObjectWriter { buffer, empty: true, formatter }
 	}
 
 	///
@@ -186,9 +195,9 @@ impl JSONObjectWriter<'_> {
 	/// Esacapes key, writes "\"key\":{" and returns a JSONObjectWriter
 	/// 
 	#[inline(always)]
-	pub fn object<'a>(&'a mut self, key: &str) -> JSONObjectWriter<'a> {
+	pub fn object<'a>(&'a mut self, key: &str) -> JSONObjectWriter<'a, F> {
 		self.write_key(key);
-		JSONObjectWriter::new(self.buffer)
+		Self::with_formatter(self.buffer, self.formatter.clone())
 	}
 
 	///
@@ -197,9 +206,9 @@ impl JSONObjectWriter<'_> {
 	/// Esacapes key, writes "\"key\":[" and returns a JSONArrayWriter. 
 	///
 	#[inline(always)]
-	pub fn array<'a>(&'a mut self, key: &str) -> JSONArrayWriter<'a> {
+	pub fn array<'a>(&'a mut self, key: &str) -> JSONArrayWriter<'a, F> {
 		self.write_key(key);
-		JSONArrayWriter::new(self.buffer)
+		JSONArrayWriter::with_formatter(self.buffer, self.formatter.clone())
 	}
 
 	///
@@ -208,7 +217,7 @@ impl JSONObjectWriter<'_> {
 	#[inline(always)]
 	pub fn value<T: JSONWriterValue> (&mut self, key: &str, value: T) {
 		self.write_key(key);
-		value.write_json(self.buffer);
+		value.write_json(self.buffer, &self.formatter);
 	}
 
 	///
@@ -223,13 +232,10 @@ impl JSONObjectWriter<'_> {
 	/// 
 	#[inline(never)]
 	pub fn write_key(&mut self, key: &str) {
-		if self.empty {
-			self.empty = false;
-		} else {
-			self.buffer.push(',');
-		}
+		self.formatter.write_comma(self.buffer, self.empty);
+		self.empty = false;
 		write_string(self.buffer, key);
-		self.buffer.push(':');
+		self.formatter.write_kv_colon(self.buffer);
 	}
 
 	///
@@ -258,22 +264,29 @@ impl JSONObjectWriter<'_> {
 	}
 }
 
-impl Drop for JSONObjectWriter<'_> {
+impl<F: Formatter> Drop for JSONObjectWriter<'_, F> {
 	#[inline(always)]
 	fn drop(&mut self) {
-		self.buffer.push('}');
+		self.formatter.end_object(self.buffer, self.empty)
 	}
 }
 
-impl JSONArrayWriter<'_> {
-
+impl JSONArrayWriter<'_, CompactFormatter> {
 	///
 	/// Creates a new JSONArrayWriter that writes to the given buffer. Writes '[' to the buffer immediately.
+	/// Uses [`CompactFormatter`].
 	/// 
 	#[inline(always)]
-	pub fn new<'a>(buffer: &'a mut String) -> JSONArrayWriter<'a> {
-		buffer.push('[');
-		JSONArrayWriter { buffer: buffer, empty: true }
+	pub fn new(buffer: &mut String) -> JSONArrayWriter<'_, CompactFormatter> {
+		JSONArrayWriter::with_formatter(buffer, CompactFormatter{})
+	}
+}
+
+impl<F: Formatter> JSONArrayWriter<'_, F> {
+	/// Creates a new writer with the specified `formatter`.
+	pub fn with_formatter<'a>(buffer: &'a mut String, mut formatter: F) -> JSONArrayWriter<'a, F> {
+		formatter.begin_array(buffer);
+		JSONArrayWriter { buffer, empty: true, formatter }
 	}
 
 
@@ -283,9 +296,9 @@ impl JSONArrayWriter<'_> {
 	/// Writes '{' and returns a JSONObjectWriter
 	/// 
 	#[inline(always)]
-	pub fn object<'a>(&'a mut self) -> JSONObjectWriter<'a> {
+	pub fn object<'a>(&'a mut self) -> JSONObjectWriter<'a, F> {
 		self.write_comma();
-		JSONObjectWriter::new(self.buffer)
+		JSONObjectWriter::with_formatter(self.buffer, self.formatter.clone())
 	}
 
 	///
@@ -294,9 +307,9 @@ impl JSONArrayWriter<'_> {
 	/// Writes '[' and returns a JSONArrayWriter
 	/// 
 	#[inline(always)]
-	pub fn array<'a>(&'a mut self) -> JSONArrayWriter<'a> {
+	pub fn array<'a>(&'a mut self) -> JSONArrayWriter<'a, F> {
 		self.write_comma();
-		JSONArrayWriter::new(self.buffer)
+		JSONArrayWriter::with_formatter(self.buffer, self.formatter.clone())
 	}
 
 	///
@@ -305,7 +318,7 @@ impl JSONArrayWriter<'_> {
 	#[inline(always)]
 	pub fn value<T: JSONWriterValue> (&mut self, value: T) {
 		self.write_comma();
-		value.write_json(self.buffer);
+		value.write_json(self.buffer, &self.formatter);
 	}
 
 	///
@@ -316,13 +329,9 @@ impl JSONArrayWriter<'_> {
 	/// If you use this method, you will have to write the value to the buffer youself afterwards.
 	/// </p>
 	/// 
-	// #[inline(never)]
 	pub fn write_comma(&mut self) {
-		if self.empty {
-			self.empty = false;
-		} else {
-			self.buffer.push(',');
-		}
+		self.formatter.write_comma(self.buffer, self.empty);
+		self.empty = false;
 	}
 
 	///
@@ -331,7 +340,7 @@ impl JSONArrayWriter<'_> {
 	/// 
 	#[inline(always)]
 	pub fn end(self) {
-		drop(self);
+		drop(self)
 	}
 
 	///
@@ -351,10 +360,140 @@ impl JSONArrayWriter<'_> {
 	}
 }
 
-impl Drop for JSONArrayWriter<'_> {
+impl<F: Formatter> Drop for JSONArrayWriter<'_, F> {
 	#[inline(always)]
 	fn drop(&mut self) {
-		self.buffer.push(']');
+		self.formatter.end_array(self.buffer, self.empty)
+	}
+}
+
+/// This trait allows control around optional whitespace when writing JSON.
+pub trait Formatter: Clone {
+	/// Called at the start of writing an object.
+	fn begin_object(&mut self, buffer: &mut String) {
+		buffer.push('{');
+	}
+
+	/// Called after writing all key-value pairs of an object.
+	///
+	/// `empty` is `true` when the object contains no key-value pairs.
+	fn end_object(&mut self, buffer: &mut String, _empty: bool) {
+		buffer.push('}');
+ 	}
+
+	/// Called at the start of writing an array.
+	fn begin_array(&mut self, buffer: &mut String) {
+		buffer.push('[');
+	} 
+
+	/// Called after writing all items of an array.
+	///
+	/// `empty` is `true` when the array contains no items.
+	fn end_array(&mut self, buffer: &mut String, _empty: bool) {
+		buffer.push(']');
+	}
+
+	/// Called before each key-value pair in an object and each item in an array.
+	///
+	/// `empty` is `true` when it's the first key-value pair or item.
+	fn write_comma(&mut self, buffer: &mut String, empty: bool) {
+		if !empty {
+			buffer.push(',');
+		}
+	}
+
+	/// Called between the key and value.
+	fn write_kv_colon(&mut self, buffer: &mut String) {
+		buffer.push(':');
+	}
+}
+
+/// Formats JSON as compactly as possible.
+#[derive(Clone, Copy)]
+pub struct CompactFormatter {}
+
+impl Formatter for CompactFormatter {}
+
+/// Formats JSON in a human-readable format with whitespace, newlines, and indentation.
+#[derive(Clone)]
+pub struct PrettyFormatter<'a> {
+	indent: &'a str,
+	depth: usize,
+}
+
+impl Default for PrettyFormatter<'_> {
+	fn default() -> Self {
+		// Same default as serde_json::ser::PrettyFormatter
+		Self {
+			indent: "  ",
+			depth: 0,
+		}
+	}
+}
+
+impl PrettyFormatter<'_> {
+	/// Creates a new human-readable formatter with two spaces for indentation.
+	pub fn new() -> Self {
+		Self::default()
+	}
+
+	/// Creates a new formatter using `indent` for indentation.
+	pub fn with_indent<'a>(indent: &'a str) -> PrettyFormatter<'a> {
+		PrettyFormatter {
+			indent,
+			depth: 0,
+		}
+	}
+}
+
+impl<'a> Formatter for PrettyFormatter<'a> {
+    fn begin_object(&mut self, buffer: &mut String) {
+		self.depth += 1;
+		buffer.push('{');
+    }
+
+    fn end_object(&mut self, buffer: &mut String, empty: bool) {
+		self.depth -= 1;
+		if !empty {
+			buffer.push('\n');
+			self.write_indent(buffer);
+		}
+		buffer.push('}');
+    }
+
+    fn begin_array(&mut self, buffer: &mut String) {
+		self.depth += 1;
+		buffer.push('[');
+    }
+
+    fn end_array(&mut self, buffer: &mut String, empty: bool) {
+		self.depth -= 1;
+		if !empty {
+			buffer.push('\n');
+			self.write_indent(buffer);
+		}
+		buffer.push(']');
+    }
+
+    fn write_comma(&mut self, buffer: &mut String, empty: bool) {
+		if empty {
+			buffer.push_str("\n")
+		} else {
+			buffer.push_str(",\n");
+		}
+		self.write_indent(buffer);
+    }
+
+	fn write_kv_colon(&mut self, buffer: &mut String) {
+		buffer.push_str(": ");
+	}
+}
+
+impl<'a> PrettyFormatter<'a> {
+	fn write_indent(&self, buffer: &mut String) {
+		for _ in 0..self.depth {
+			buffer.push_str(self.indent);
+		}
 	}
 }
 
@@ -365,47 +504,47 @@ pub trait JSONWriterValue {
 	///
 	/// Appends a JSON representation of self to the output buffer
 	/// 
-	fn write_json(self, output_buffer: &mut String);
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, formatter: &F);
 }
 
 impl JSONWriterValue for &str {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		write_string(output_buffer, self);
 	}
 }
 
 impl JSONWriterValue for &std::borrow::Cow<'_, str> {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		write_string(output_buffer, std::convert::AsRef::as_ref(self));
 	}
 }
 
 impl JSONWriterValue for &String {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		write_string(output_buffer, self);
 	}
 }
 
 impl JSONWriterValue for f64 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		write_float(output_buffer, self);
 	}
 }
 
 impl JSONWriterValue for f32 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		write_float(output_buffer, self as f64);
 	}
 }
 
 impl JSONWriterValue for u32 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		let mut buf = itoa::Buffer::new();
 		output_buffer.push_str(buf.format(self));
 	}
@@ -413,14 +552,14 @@ impl JSONWriterValue for u32 {
 
 impl JSONWriterValue for i32 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		let mut buf = itoa::Buffer::new();
 		output_buffer.push_str(buf.format(self));
 	}
 }
 impl JSONWriterValue for u16 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		let mut buf = itoa::Buffer::new();
 		output_buffer.push_str(buf.format(self));
 	}
@@ -428,7 +567,7 @@ impl JSONWriterValue for u16 {
 
 impl JSONWriterValue for i16 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		let mut buf = itoa::Buffer::new();
 		output_buffer.push_str(buf.format(self));
 	}
@@ -436,7 +575,7 @@ impl JSONWriterValue for i16 {
 
 impl JSONWriterValue for u8 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		let mut buf = itoa::Buffer::new();
 		output_buffer.push_str(buf.format(self));
 	}
@@ -444,7 +583,7 @@ impl JSONWriterValue for u8 {
 
 impl JSONWriterValue for i8 {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		let mut buf = itoa::Buffer::new();
 		output_buffer.push_str(buf.format(self));
 	}
@@ -452,41 +591,34 @@ impl JSONWriterValue for i8 {
 
 impl JSONWriterValue for bool {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		output_buffer.push_str(if self {"true"} else {"false"});
 	}
 }
 
 impl JSONWriterValue for Null {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, _formatter: &F) {
 		output_buffer.push_str("null");
 	}
 }
 
 impl <T: JSONWriterValue + Copy> JSONWriterValue for &T {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
-		(*self).write_json(output_buffer);
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, formatter: &F) {
+		(*self).write_json(output_buffer, formatter);
 	}
 }
 
-// impl JSONWriterValue for serde_json::value::Value::Null {
-// 	#[inline(always)]
-// 	fn write_json(&self, output_buffer: &mut String) {
-// 		buffer.push_str("null");
-// 	}
-// }
-
 impl <T: JSONWriterValue> JSONWriterValue for Option<T> {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, formatter: &F) {
 		match self {
 			None => {
 				output_buffer.push_str("null");
 			},
 			Some(value) => {
-				value.write_json(output_buffer);
+				value.write_json(output_buffer, formatter);
 			}
 		}
 	}
@@ -495,17 +627,16 @@ impl <T: JSONWriterValue> JSONWriterValue for Option<T> {
 impl <Item> JSONWriterValue for &Vec<Item> 
 	where for<'b> &'b Item: JSONWriterValue {
 	#[inline(always)]
-	fn write_json(self, output_buffer: &mut String) {
-		(&self[..]).write_json(output_buffer);
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, formatter: &F) {
+		self.as_slice().write_json(output_buffer, formatter);
 	}
 }
 
 impl <Item> JSONWriterValue for &[Item] 
 	where for<'b> &'b Item: JSONWriterValue {
-	fn write_json(self, output_buffer: &mut String) {
-		let mut array = JSONArrayWriter::new(output_buffer);
-		let mut iter = self.iter();
-		while let Some(item) = iter.next() {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, formatter: &F) {
+		let mut array = JSONArrayWriter::with_formatter(output_buffer, formatter.clone());
+		for item in self.iter() {
 			array.value(item);
 		}
 	}
@@ -513,10 +644,9 @@ impl <Item> JSONWriterValue for &[Item]
 
 impl <Key: AsRef<str>, Item> JSONWriterValue for &std::collections::HashMap<Key, Item>
 	where for<'b> &'b Item: JSONWriterValue {
-	fn write_json(self, output_buffer: &mut String) {
-		let mut iter = self.iter();
-		let mut obj = JSONObjectWriter::new(output_buffer);
-		while let Some((key, value)) = iter.next() {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, formatter: &F) {
+		let mut obj = JSONObjectWriter::with_formatter(output_buffer, formatter.clone());
+		for (key, value) in self.iter() {
 			obj.value(key.as_ref(),value);
 		}
 	}
@@ -524,10 +654,9 @@ impl <Key: AsRef<str>, Item> JSONWriterValue for &std::collections::HashMap<Key,
 
 impl <Key: AsRef<str>, Item> JSONWriterValue for &std::collections::BTreeMap<Key, Item>
 	where for<'b> &'b Item: JSONWriterValue {
-	fn write_json(self, output_buffer: &mut String) {
-		let mut iter = self.iter();
-		let mut obj = JSONObjectWriter::new(output_buffer);
-		while let Some((key, value)) = iter.next() {
+	fn write_json<F: Formatter>(self, output_buffer: &mut String, formatter: &F) {
+		let mut obj = JSONObjectWriter::with_formatter(output_buffer, formatter.clone());
+		for (key, value) in self.iter() {
 			obj.value(key.as_ref(),value);
 		}
 	}
@@ -539,7 +668,7 @@ impl <Key: AsRef<str>, Item> JSONWriterValue for &std::collections::BTreeMap<Key
 #[inline]
 pub fn to_json_string<T: JSONWriterValue>(v: T) -> String {
 	let mut result = String::new();
-	v.write_json(&mut result);
+	v.write_json(&mut result, &CompactFormatter{});
 	return result;
 }
 
@@ -653,254 +782,252 @@ pub fn write_float(output_buffer: &mut String, value: f64) {
 		return;
 	}
 
-	// let mut buf = dtoa::Buffer::new();
-	// let mut result = buf.format_finite(v);
-
 	let mut buf = ryu::Buffer::new();
 	let mut result = buf.format_finite(value);
 	if result.ends_with(".0") {
 		result = unsafe { result.get_unchecked( .. result.len()-2) };
 	}
-	// workaround for dtoa
-	// if v < 0.0 && result != "0" {
-	// 	buffer.push('-');
-	// }
 	output_buffer.push_str(result);
 }
 
-// #[inline(never)]
-// const fn needs_escaping(string: &str) -> usize {
-// 	let mut is_open = false;
-// 	usize mut i = 0;
-// 	for let b in string.bytes() {
-// 		match b {
-// 			b'\r' | b'\n' | b'\\' | b'"' => return i;
-// 			b'<' => is_open = true;
-// 			b'/' => if is_open return i; else is_open = false;
-// 			_ => is_open = false;
-// 		}
-// 		i += 1;
-// 	}
-// 	return usize::MAX;
-// }
-
-#[test]
-fn test_array() {
-	let mut buffer = String::new();
-	let mut array = JSONArrayWriter::new(&mut buffer);
-	array.value(0u8);
-	array.value(1i32);
-	array.value("2");
-	array.value("\"<script>1/2</script>\"");
-	let mut nested_arr = array.array();
-	nested_arr.value("nested");
-	nested_arr.end();
-	let mut nested_obj = array.object();
-	nested_obj.value("ä\töü", "ä\töü");
-	nested_obj.end();
-	let nested_obj2 = array.object();
-	nested_obj2.end();
-	drop(array);
-
-	assert_eq!(buffer, "[0,1,\"2\",\"\\\"<script>1\\/2<\\/script>\\\"\",[\"nested\"],{\"ä\\töü\":\"ä\\töü\"},{}]");
-}
-
-
-#[test]
-fn test_array_range() {
-	let bytes = b"ABC";
-	assert_eq!(to_json_string(&bytes[..]), "[65,66,67]");
-
-	let mut v = Vec::<u8>::new();
-	v.extend_from_slice(bytes);
-	assert_eq!(to_json_string(&v), "[65,66,67]");
-}
-
-#[test]
-fn test_object() {
-	let mut map = std::collections::HashMap::<String, String>::new(); 
-	map.insert("a".to_owned(), "a".to_owned());
-	assert_eq!(to_json_string(&map), "{\"a\":\"a\"}");
-}
-
-#[test]
-fn test_numbers() {
-	// unsigned
-	assert_eq!(to_json_string(1u8), "1");
-	assert_eq!(to_json_string(1u16), "1");
-	assert_eq!(to_json_string(1u32), "1");
-	assert_eq!(to_json_string(u8::MAX), "255");
-	assert_eq!(to_json_string(u16::MAX), "65535");
-	assert_eq!(to_json_string(u32::MAX), "4294967295");
-
-	// signed
-	assert_eq!(to_json_string(-1i8), "-1");
-	assert_eq!(to_json_string(-1i16), "-1");
-	assert_eq!(to_json_string(-1i32), "-1");
-
-	// float
-	assert_eq!(to_json_string(0f32), "0");
-	assert_eq!(to_json_string(2f32), "2");
-	assert_eq!(to_json_string(-2f32), "-2");
-
-	assert_eq!(to_json_string(0f64), "0");
-	assert_eq!(to_json_string(2f64), "2");
-	assert_eq!(to_json_string(-2f64), "-2");
-	assert_eq!(to_json_string(3.141592653589793), "3.141592653589793");
-	assert_eq!(to_json_string(0.1f64), "0.1");
-	assert_eq!(to_json_string(-0.1f64), "-0.1");
-	//assert_eq!(to_json_string(-5.0/3.0), "-1.6666666666666667");
-	assert_eq!(to_json_string(1.5e30f64), "1.5e30");
-	assert_eq!(to_json_string(-2.220446049250313e-16f64), "-2.220446049250313e-16");
-
-	
-	assert_eq!(to_json_string(1.0/0.0), "null");
-	assert_eq!(to_json_string(std::f64::INFINITY), "null");
-	assert_eq!(to_json_string(std::f64::NEG_INFINITY), "null");
-}
-
-#[test]
-fn test_dtoa() {
-	assert_dtoa(0.0);
-	assert_dtoa(1.0);
-	assert_dtoa(-1.0);
-	assert_dtoa(2.0);
-	//assert_dtoa(-5.0/3.0);
-}
-
 #[cfg(test)]
-fn assert_dtoa(v: f64) {
-	let a = v.to_string();
-	let mut b = String::new();
-	write_float(&mut b, v);
-	assert_eq!(b, a);
-}
-
-
-#[test]
-fn test_strings() {
-	assert_eq!(to_json_string("中文\0\x08\x09\"\\\n\r\t</script>"), "\"中文\\u0000\\b\\t\\\"\\\\\\n\\r\\t<\\/script>\"");
-}
-
-#[test]
-fn test_basic_example() {
+mod tests {
+	use super::*;
 	
-	let mut object_str = String::new();
-	{
-		let mut object_writer = JSONObjectWriter::new(&mut object_str);
-		object_writer.value("number", 42i32);
+	#[test]
+	fn test_array() {
+		let mut buffer = String::new();
+		let mut array = JSONArrayWriter::new(&mut buffer);
+		array.value(0u8);
+		array.value(1i32);
+		array.value("2");
+		array.value("\"<script>1/2</script>\"");
+		let mut nested_arr = array.array();
+		nested_arr.value("nested");
+		nested_arr.end();
+		let mut nested_obj = array.object();
+		nested_obj.value("ä\töü", "ä\töü");
+		nested_obj.end();
+		let nested_obj2 = array.object();
+		nested_obj2.end();
+		drop(array);
+
+		assert_eq!(buffer, "[0,1,\"2\",\"\\\"<script>1\\/2<\\/script>\\\"\",[\"nested\"],{\"ä\\töü\":\"ä\\töü\"},{}]");
 	}
-	assert_eq!(&object_str, "{\"number\":42}");
-}
 
 
-#[test]
-fn test_misc_examples() {
-	// Values
-	assert_eq!(to_json_string("Hello World\n"), "\"Hello World\\n\"");
-	assert_eq!(to_json_string(3.141592653589793f64), "3.141592653589793");
-	assert_eq!(to_json_string(true), "true");
-	assert_eq!(to_json_string(false), "false");
-	assert_eq!(to_json_string(NULL), "null");
-	
-	// Options of values
-	assert_eq!(to_json_string(Option::<u8>::Some(42)), "42");
-	assert_eq!(to_json_string(Option::<u8>::None), "null");
-	
-	// Slices and vectors
-	let numbers: [u8; 4] = [1,2,3,4];
-	assert_eq!(to_json_string(&numbers[..]), "[1,2,3,4]");
-	let numbers_vec: Vec<u8> = vec!(1u8,2u8,3u8,4u8);
-	assert_eq!(to_json_string(&numbers_vec), "[1,2,3,4]");
-	let strings: [&str; 4] = ["a","b","c","d"];
-	assert_eq!(to_json_string(&strings[..]), "[\"a\",\"b\",\"c\",\"d\"]");
+	#[test]
+	fn test_array_range() {
+		let bytes = b"ABC";
+		assert_eq!(to_json_string(&bytes[..]), "[65,66,67]");
 
-	// Hash-maps:
-	let mut map = std::collections::HashMap::<String,String>::new();
-	map.insert("Hello".to_owned(), "World".to_owned());
-	assert_eq!(to_json_string(&map), "{\"Hello\":\"World\"}");
-
-	// Objects:
-	let mut object_str = String::new();
-	let mut object_writer = JSONObjectWriter::new(&mut object_str);
-	
-	// Values
-	object_writer.value("number", 42i32);
-	object_writer.value("slice", &numbers[..]);
-
-	// Nested arrays
-	let mut nested_array = object_writer.array("array");
-	nested_array.value(42u32);
-	nested_array.value("?");
-	nested_array.end();
-	
-	// Nested objects
-	let nested_object = object_writer.object("object");
-	nested_object.end();
-	
-	object_writer.end();
-	assert_eq!(&object_str, "{\"number\":42,\"slice\":[1,2,3,4],\"array\":[42,\"?\"],\"object\":{}}");
-}
-
-#[test]
-fn test_duplicate_keys() {
-
-	let mut object_str = String::new();
-	{
-		let mut object_writer = JSONObjectWriter::new(&mut object_str);
-		object_writer.value("number", 42i32);
-		object_writer.value("number", 43i32);
+		let mut v = Vec::<u8>::new();
+		v.extend_from_slice(bytes);
+		assert_eq!(to_json_string(&v), "[65,66,67]");
 	}
-	// Duplicates are not checked, this is by design!
-	assert_eq!(&object_str, "{\"number\":42,\"number\":43}");
-}
 
-#[test]
-fn test_flush() {
-	// this could also be a file writer.
-	let mut writer = Vec::<u8>::new();
+	#[test]
+	fn test_object() {
+		let mut map = std::collections::HashMap::<String, String>::new(); 
+		map.insert("a".to_owned(), "a".to_owned());
+		assert_eq!(to_json_string(&map), "{\"a\":\"a\"}");
+	}
 
-	let mut buffer = String::new();
-	let mut array = JSONArrayWriter::new(&mut buffer);
-	for i in 1i32 ..= 1000000i32 {
-		array.value(i);
-		if array.buffer_len() > 2000 {
-			array.output_buffered_data(&mut writer).unwrap();
+	#[test]
+	fn test_numbers() {
+		// unsigned
+		assert_eq!(to_json_string(1u8), "1");
+		assert_eq!(to_json_string(1u16), "1");
+		assert_eq!(to_json_string(1u32), "1");
+		assert_eq!(to_json_string(u8::MAX), "255");
+		assert_eq!(to_json_string(u16::MAX), "65535");
+		assert_eq!(to_json_string(u32::MAX), "4294967295");
+
+		// signed
+		assert_eq!(to_json_string(-1i8), "-1");
+		assert_eq!(to_json_string(-1i16), "-1");
+		assert_eq!(to_json_string(-1i32), "-1");
+
+		// float
+		assert_eq!(to_json_string(0f32), "0");
+		assert_eq!(to_json_string(2f32), "2");
+		assert_eq!(to_json_string(-2f32), "-2");
+
+		assert_eq!(to_json_string(0f64), "0");
+		assert_eq!(to_json_string(2f64), "2");
+		assert_eq!(to_json_string(-2f64), "-2");
+		assert_eq!(to_json_string(3.141592653589793), "3.141592653589793");
+		assert_eq!(to_json_string(0.1f64), "0.1");
+		assert_eq!(to_json_string(-0.1f64), "-0.1");
+		//assert_eq!(to_json_string(-5.0/3.0), "-1.6666666666666667");
+		assert_eq!(to_json_string(1.5e30f64), "1.5e30");
+		assert_eq!(to_json_string(-2.220446049250313e-16f64), "-2.220446049250313e-16");
+
+	
+		assert_eq!(to_json_string(1.0/0.0), "null");
+		assert_eq!(to_json_string(std::f64::INFINITY), "null");
+		assert_eq!(to_json_string(std::f64::NEG_INFINITY), "null");
+		assert_eq!(to_json_string(std::f64::NAN), "null");
+	}
+
+	#[test]
+	fn test_dtoa() {
+		assert_dtoa(0.0);
+		assert_dtoa(1.0);
+		assert_dtoa(-1.0);
+		assert_dtoa(2.0);
+		//assert_dtoa(-5.0/3.0);
+	}
+
+	fn assert_dtoa(v: f64) {
+		let a = v.to_string();
+		let mut b = String::new();
+		write_float(&mut b, v);
+		assert_eq!(b, a);
+	}
+
+
+	#[test]
+	fn test_strings() {
+		assert_eq!(to_json_string("中文\0\x08\x09\"\\\n\r\t</script>"), "\"中文\\u0000\\b\\t\\\"\\\\\\n\\r\\t<\\/script>\"");
+	}
+
+	#[test]
+	fn test_basic_example() {
+	
+		let mut object_str = String::new();
+		{
+			let mut object_writer = JSONObjectWriter::new(&mut object_str);
+			object_writer.value("number", 42i32);
 		}
+		assert_eq!(&object_str, "{\"number\":42}");
 	}
-	array.end();
-	std::io::Write::write_all(&mut writer, buffer.as_bytes()).unwrap();
 
 
-	if buffer.len() > 4000 {
-		panic!("Buffer too long");
+	#[test]
+	fn test_misc_examples() {
+		// Values
+		assert_eq!(to_json_string("Hello World\n"), "\"Hello World\\n\"");
+		assert_eq!(to_json_string(3.141592653589793f64), "3.141592653589793");
+		assert_eq!(to_json_string(true), "true");
+		assert_eq!(to_json_string(false), "false");
+		assert_eq!(to_json_string(NULL), "null");
+	
+		// Options of values
+		assert_eq!(to_json_string(Option::<u8>::Some(42)), "42");
+		assert_eq!(to_json_string(Option::<u8>::None), "null");
+	
+		// Slices and vectors
+		let numbers: [u8; 4] = [1,2,3,4];
+		assert_eq!(to_json_string(&numbers[..]), "[1,2,3,4]");
+		let numbers_vec: Vec<u8> = vec!(1u8,2u8,3u8,4u8);
+		assert_eq!(to_json_string(&numbers_vec), "[1,2,3,4]");
+		let strings: [&str; 4] = ["a","b","c","d"];
+		assert_eq!(to_json_string(&strings[..]), "[\"a\",\"b\",\"c\",\"d\"]");
+
+		// // Hash-maps:
+		let mut map = std::collections::HashMap::<String,String>::new();
+		map.insert("Hello".to_owned(), "World".to_owned());
+		assert_eq!(to_json_string(&map), "{\"Hello\":\"World\"}");
+
+		// Objects:
+		let mut object_str = String::new();
+		let mut object_writer = JSONObjectWriter::new(&mut object_str);
+	
+		// // Values
+		object_writer.value("number", 42i32);
+		object_writer.value("slice", &numbers[..]);
+
+		// Nested arrays
+		let mut nested_array = object_writer.array("array");
+		nested_array.value(42u32);
+		nested_array.value("?");
+		nested_array.end();
+	
+		// Nested objects
+		let nested_object = object_writer.object("object");
+		nested_object.end();
+	
+		object_writer.end();
+		assert_eq!(&object_str, "{\"number\":42,\"slice\":[1,2,3,4],\"array\":[42,\"?\"],\"object\":{}}");
 	}
-	assert_eq!(&writer[writer.len() - b",999999,1000000]".len()..], b",999999,1000000]");
-}
 
-#[cfg(test)]
-#[allow(dead_code)]
-fn test_write_numbers(file: &mut std::fs::File) -> std::io::Result<()> {
-	let mut buffer = String::new();
-	let mut array = JSONArrayWriter::new(&mut buffer);
-	for i in 1i32 ..= 1000000i32 {
-		array.value(i);
-		if array.buffer_len() > 2000 {
-			array.output_buffered_data(file)?;
+	#[test]
+	fn test_duplicate_keys() {
+
+		let mut object_str = String::new();
+		{
+			let mut object_writer = JSONObjectWriter::new(&mut object_str);
+			object_writer.value("number", 42i32);
+			object_writer.value("number", 43i32);
 		}
+		// Duplicates are not checked, this is by design!
+		assert_eq!(&object_str, "{\"number\":42,\"number\":43}");
 	}
-	array.end();
-	std::io::Write::write_all(file, buffer.as_bytes())?;
 
-	return Ok(());
-}
+	#[test]
+	fn test_flush() {
+		// this could also be a file writer.
+		let mut writer = Vec::<u8>::new();
 
-#[test]
-fn test_encoding() {
-	for c in 0x00..0x20 {
-		let c = char::from(c);
-		let json = to_json_string(c.to_string().as_str());
-		assert!(&json[0..2] == "\"\\");
+		let mut buffer = String::new();
+		let mut array = JSONArrayWriter::new(&mut buffer);
+		for i in 1i32 ..= 1000000i32 {
+			array.value(i);
+			if array.buffer_len() > 2000 {
+				array.output_buffered_data(&mut writer).unwrap();
+			}
+		}
+		array.end();
+		std::io::Write::write_all(&mut writer, buffer.as_bytes()).unwrap();
+
+
+		assert!(buffer.len() <= 4000, "Buffer too long");
+		assert_eq!(&writer[writer.len() - b",999999,1000000]".len()..], b",999999,1000000]");
 	}
-	assert_eq!(to_json_string("</script >\0\x1F"), "\"<\\/script >\\u0000\\u001F\"");
+
+	#[test]
+	fn test_encoding() {
+		for c in 0x00..0x20 {
+			let c = char::from(c);
+			let json = to_json_string(c.to_string().as_str());
+			assert!(&json[0..2] == "\"\\");
+		}
+		assert_eq!(to_json_string("</script >\0\x1F"), "\"<\\/script >\\u0000\\u001F\"");
+	}
+
+	#[test]
+	fn test_pretty() {
+		let mut res = String::new();
+		let mut writer = JSONObjectWriter::with_formatter(&mut res, PrettyFormatter::with_indent("   "));
+		{
+			let mut nested_writer = writer.object("nested");
+			nested_writer.value("a", 3);
+			nested_writer.value("b", &vec![0, 1, 4]);
+		}
+		writer.value("c", &vec![true, false, true]);
+		writer.value("d", NULL);
+		// empty object
+		writer.object("e");
+		writer.array("f");
+		writer.end();
+		assert_eq!(res, r#"{
+   "nested": {
+      "a": 3,
+      "b": [
+         0,
+         1,
+         4
+      ]
+   },
+   "c": [
+      true,
+      false,
+      true
+   ],
+   "d": null,
+   "e": {},
+   "f": []
+}"#);
+	}
 }
