@@ -409,8 +409,15 @@ pub trait Formatter: Clone {
 }
 
 /// Formats JSON as compactly as possible.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct CompactFormatter {}
+
+impl CompactFormatter {
+	/// Creates a new compact JSON formatter.
+	pub const fn new() -> Self {
+		Self {}
+	}
+}
 
 impl Formatter for CompactFormatter {}
 
@@ -423,22 +430,22 @@ pub struct PrettyFormatter<'a> {
 
 impl Default for PrettyFormatter<'_> {
 	fn default() -> Self {
+		Self::new()
+	}
+}
+
+impl PrettyFormatter<'_> {
+	/// Creates a new human-readable formatter with two spaces for indentation.
+	pub const fn new() -> Self {
 		// Same default as serde_json::ser::PrettyFormatter
 		Self {
 			indent: "  ",
 			depth: 0,
 		}
 	}
-}
-
-impl PrettyFormatter<'_> {
-	/// Creates a new human-readable formatter with two spaces for indentation.
-	pub fn new() -> Self {
-		Self::default()
-	}
 
 	/// Creates a new formatter using `indent` for indentation.
-	pub fn with_indent<'a>(indent: &'a str) -> PrettyFormatter<'a> {
+	pub const fn with_indent<'a>(indent: &'a str) -> PrettyFormatter<'a> {
 		PrettyFormatter {
 			indent,
 			depth: 0,
