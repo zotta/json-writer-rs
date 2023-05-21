@@ -1,6 +1,6 @@
 [package]
 name = "json-writer"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "Simple and fast crate for writing JSON to a string without creating intermediate objects"
 license = "Unlicense"
@@ -10,5 +10,5 @@ repository = "https://github.com/zotta/json-writer-rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-itoa = "1.0.1"
-ryu = "1.0.9"
+itoa = "1.0.6"
+ryu = "1.0.13"
