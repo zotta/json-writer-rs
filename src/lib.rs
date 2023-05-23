@@ -517,32 +517,26 @@ impl JSONWriter for String {
 /// Formats JSON in a human-readable format with whitespace, newlines, and indentation.
 pub struct PrettyJSONWriter<'a> {
     /// Result
-    pub buffer: String,
+    pub buffer: &'a mut String,
     indent: &'a str,
     depth: usize,
 }
 
-impl Default for PrettyJSONWriter<'_> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl PrettyJSONWriter<'_> {
     /// Creates a new human-readable formatter with two spaces for indentation.
-    pub const fn new() -> Self {
+    pub fn new<'a>(buffer: &'a mut String) -> PrettyJSONWriter<'a> {
         // Same default as serde_json::ser::PrettyFormatter
-        Self {
-            buffer: String::new(),
+        PrettyJSONWriter {
+            buffer,
             indent: "  ",
             depth: 0,
         }
     }
 
     /// Creates a new formatter using `indent` for indentation.
-    pub const fn with_indent<'a>(indent: &'a str) -> PrettyJSONWriter<'a> {
+    pub fn with_indent<'a>(buffer: &'a mut String, indent: &'a str) -> PrettyJSONWriter<'a> {
         PrettyJSONWriter {
-            buffer: String::new(),
+            buffer,
             indent,
             depth: 0,
         }
@@ -816,7 +810,7 @@ pub fn write_string(output_buffer: &mut String, input: &str) {
 /// Escapes input and appends result to output buffer without adding quotes.
 ///
 #[inline(never)]
-pub fn write_part_of_string<W: JSONWriter>(output_buffer: &mut String, input: &str) {
+pub fn write_part_of_string(output_buffer: &mut String, input: &str) {
     write_part_of_string_impl(output_buffer, input);
 }
 
@@ -1111,7 +1105,8 @@ mod tests {
 
     #[test]
     fn test_pretty() {
-        let mut formatter = PrettyJSONWriter::with_indent("   ");
+        let mut buffer = String::new();
+        let mut formatter = PrettyJSONWriter::with_indent(&mut buffer, "   ");
         let mut writer = JSONObjectWriter::new(&mut formatter);
         {
             let mut nested_writer = writer.object("nested");
