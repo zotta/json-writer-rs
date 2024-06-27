@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 //!
 //! Simple and fast crate for writing JSON to a string without creating intermediate objects.
 //!
@@ -122,6 +120,24 @@
 //! assert_eq!(&object_str, "{\"number\":42,\"number\":43}");
 //! ```
 //!
+//! ## No-std support
+//!
+//! In no_std mode, almost all of the same API is available and works the same way.
+//! To depend on json-writer in no_std mode, disable our default enabled "std" feature in
+//! Cargo.toml.
+//!
+//! ```toml
+//! [dependencies]
+//! json-writer = { version = "0.3", default-features = false }
+//! ```
+#![warn(missing_docs)]
+#![no_std]
+#[cfg(feature = "std")]
+extern crate std;
+
+extern crate alloc;
+
+use alloc::{string::String, vec::Vec};
 
 ///
 /// Helper for appending a JSON object to the borrowed buffer.
@@ -336,6 +352,7 @@ impl JSONObjectWriter<'_, String> {
     /// Writes the entire buffer to given writer and clears entire buffer on success.
     ///
     #[inline(always)]
+    #[cfg(feature = "std")]
     pub fn output_buffered_data<Writer: std::io::Write>(
         &mut self,
         writer: &mut Writer,
@@ -925,6 +942,7 @@ fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::{borrow::ToOwned, string::ToString, vec};
 
     #[test]
     fn test_array() {
