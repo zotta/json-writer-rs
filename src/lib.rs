@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 //!
 //! Simple and fast crate for writing JSON to a string without creating intermediate objects.
 //!
