@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![no_std]
 
 //!
 //! Simple and fast crate for writing JSON to a string without creating intermediate objects.
@@ -122,6 +123,16 @@
 //! assert_eq!(&object_str, "{\"number\":42,\"number\":43}");
 //! ```
 //!
+//! ## No-std support
+//!
+//! In no_std mode, almost all of the same API is available and works the same way.
+//! To depend on json-writer in no_std mode, disable our default enabled "std" feature in
+//! Cargo.toml.
+//!
+//! ```toml
+//! [dependencies]
+//! json-writer = { version = "0.3", default-features = false }
+//! ```
 
 ///
 /// Helper for appending a JSON object to the borrowed buffer.
