@@ -644,6 +644,38 @@ impl JSONWriterValue for f32 {
     }
 }
 
+impl JSONWriterValue for u128 {
+    #[inline(always)]
+    fn write_json<W: JSONWriter>(self, writer: &mut W) {
+        let mut buf = itoa::Buffer::new();
+        writer.json_number_str(buf.format(self));
+    }
+}
+
+impl JSONWriterValue for i128 {
+    #[inline(always)]
+    fn write_json<W: JSONWriter>(self, writer: &mut W) {
+        let mut buf = itoa::Buffer::new();
+        writer.json_number_str(buf.format(self));
+    }
+}
+
+impl JSONWriterValue for u64 {
+    #[inline(always)]
+    fn write_json<W: JSONWriter>(self, writer: &mut W) {
+        let mut buf = itoa::Buffer::new();
+        writer.json_number_str(buf.format(self));
+    }
+}
+
+impl JSONWriterValue for i64 {
+    #[inline(always)]
+    fn write_json<W: JSONWriter>(self, writer: &mut W) {
+        let mut buf = itoa::Buffer::new();
+        writer.json_number_str(buf.format(self));
+    }
+}
+
 impl JSONWriterValue for u32 {
     #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
@@ -659,6 +691,7 @@ impl JSONWriterValue for i32 {
         writer.json_number_str(buf.format(self));
     }
 }
+
 impl JSONWriterValue for u16 {
     #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
