@@ -100,7 +100,7 @@ fn write_numbers(file: &mut std::fs::File) -> std::io::Result<()> {
 
 Because there is no intermediate representations, all values must be written in the order they appear in the JSON output.
 The Borrow checker ensures sub-objects are closed before anything else can be written after them.
-```compile_fail
+```rust compile_fail
 use json_writer::JSONObjectWriter;
 let mut object_str = String::new();
 let mut object_writer = JSONObjectWriter::new(&mut object_str);
