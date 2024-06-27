@@ -11,8 +11,8 @@
 //! let number: i32 = 42;
 //! let mut object_str = String::new();
 //! {
-//! 	let mut object_writer = JSONObjectWriter::new(&mut object_str);
-//! 	object_writer.value("number", number);
+//!     let mut object_writer = JSONObjectWriter::new(&mut object_str);
+//!     object_writer.value("number", number);
 //! }
 //! assert_eq!(&object_str, "{\"number\":42}");
 //! ```
@@ -76,19 +76,19 @@
 //! ```
 //! use json_writer::JSONArrayWriter;
 //! fn write_numbers(file: &mut std::fs::File) -> std::io::Result<()> {
-//! 	let mut buffer = String::new();
-//! 	let mut array = JSONArrayWriter::new(&mut buffer);
-//! 	for i in 1i32 ..= 1000000i32 {
-//! 		array.value(i);
-//! 		if array.buffer_len() > 2000 {
-//! 			// Manual flush
-//! 			array.output_buffered_data(file)?;
-//! 		}
-//! 	}
-//! 	array.end();
-//! 	std::io::Write::write_all(file, buffer.as_bytes())?;
+//!     let mut buffer = String::new();
+//!     let mut array = JSONArrayWriter::new(&mut buffer);
+//!     for i in 1i32 ..= 1000000i32 {
+//!         array.value(i);
+//!         if array.buffer_len() > 2000 {
+//!             // Manual flush
+//!             array.output_buffered_data(file)?;
+//!         }
+//!     }
+//!     array.end();
+//!     std::io::Write::write_all(file, buffer.as_bytes())?;
 //!
-//! 	return Ok(());
+//!     return Ok(());
 //! }
 //! ```
 //!
@@ -115,9 +115,9 @@
 //! use json_writer::JSONObjectWriter;
 //! let mut object_str = String::new();
 //! {
-//! 	let mut object_writer = JSONObjectWriter::new(&mut object_str);
-//! 	object_writer.value("number", 42i32);
-//! 	object_writer.value("number", 43i32);
+//!     let mut object_writer = JSONObjectWriter::new(&mut object_str);
+//!     object_writer.value("number", 42i32);
+//!     object_writer.value("number", 43i32);
 //! }
 //! assert_eq!(&object_str, "{\"number\":42,\"number\":43}");
 //! ```
