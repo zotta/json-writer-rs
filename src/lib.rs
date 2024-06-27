@@ -267,7 +267,7 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     /// Creates a new JSONObjectWriter that writes to the given buffer. Writes '{' to the buffer immediately.
     ///
     #[inline(always)]
-    pub fn new<'a>(writer: &'a mut W) -> JSONObjectWriter<'a, W> {
+    pub fn new(writer: &mut W) -> JSONObjectWriter<'_, W> {
         writer.json_begin_object();
         JSONObjectWriter {
             writer,
@@ -364,7 +364,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Creates a new JSONArrayWriter that writes to the given buffer. Writes '[' to the buffer immediately.
     ///
     #[inline(always)]
-    pub fn new<'a>(writer: &'a mut W) -> JSONArrayWriter<'a, W> {
+    pub fn new(writer: &mut W) -> JSONArrayWriter<'_, W> {
         writer.json_begin_array();
         JSONArrayWriter {
             writer,
@@ -378,7 +378,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Writes '{' and returns a JSONObjectWriter
     ///
     #[inline(always)]
-    pub fn object<'a>(&'a mut self) -> JSONObjectWriter<'a, W> {
+    pub fn object(&mut self) -> JSONObjectWriter<'_, W> {
         self.write_comma();
         JSONObjectWriter::new(self.writer)
     }
@@ -389,7 +389,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Writes '[' and returns a JSONArrayWriter
     ///
     #[inline(always)]
-    pub fn array<'a>(&'a mut self) -> JSONArrayWriter<'a, W> {
+    pub fn array(&mut self) -> JSONArrayWriter<'_, W> {
         self.write_comma();
         JSONArrayWriter::new(self.writer)
     }
@@ -524,7 +524,7 @@ pub struct PrettyJSONWriter<'a> {
 
 impl PrettyJSONWriter<'_> {
     /// Creates a new human-readable formatter with two spaces for indentation.
-    pub fn new<'a>(buffer: &'a mut String) -> PrettyJSONWriter<'a> {
+    pub fn new(buffer: &mut String) -> PrettyJSONWriter<'_> {
         // Same default as serde_json::ser::PrettyFormatter
         PrettyJSONWriter {
             buffer,
@@ -586,12 +586,12 @@ impl JSONWriter for PrettyJSONWriter<'_> {
     fn json_object_key(&mut self, key: &str, first: bool) {
         self.buffer.push_str(if first { "\n" } else { ",\n" });
         self.write_indent();
-        crate::write_string(&mut self.buffer, key);
+        crate::write_string(self.buffer, key);
         self.buffer.push_str(": ");
     }
 
     fn json_string(&mut self, value: &str) {
-        crate::write_string(&mut self.buffer, value);
+        crate::write_string(self.buffer, value);
     }
 
     fn json_fragment(&mut self, value: &str) {
@@ -779,7 +779,7 @@ where
 pub fn to_json_string<T: JSONWriterValue>(v: T) -> String {
     let mut result = String::new();
     v.write_json(&mut result);
-    return result;
+    result
 }
 
 fn output_buffer_to<Writer: std::io::Write>(
@@ -835,7 +835,8 @@ const fn get_replacements() -> [u8; 256] {
     result[b'\r' as usize] = b'r';
     result[b'\t' as usize] = b't';
     result[0] = b'u';
-    return result;
+
+    result
 }
 static REPLACEMENTS: [u8; 256] = get_replacements();
 static HEX: [u8; 16] = *b"0123456789ABCDEF";
