@@ -973,11 +973,18 @@ mod tests {
         assert_eq!(to_json_string(u8::MAX), "255");
         assert_eq!(to_json_string(u16::MAX), "65535");
         assert_eq!(to_json_string(u32::MAX), "4294967295");
+        assert_eq!(to_json_string(u64::MAX), "18446744073709551615");
+        assert_eq!(
+            to_json_string(u128::MAX),
+            "340282366920938463463374607431768211455"
+        );
 
         // signed
         assert_eq!(to_json_string(-1i8), "-1");
         assert_eq!(to_json_string(-1i16), "-1");
         assert_eq!(to_json_string(-1i32), "-1");
+        assert_eq!(to_json_string(-1i64), "-1");
+        assert_eq!(to_json_string(-1i128), "-1");
 
         // float
         assert_eq!(to_json_string(0f32), "0");
