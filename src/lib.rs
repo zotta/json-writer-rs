@@ -123,6 +123,8 @@
 //! ```
 //!
 
+use core::fmt;
+
 ///
 /// Helper for appending a JSON object to the borrowed buffer.
 ///
@@ -155,6 +157,33 @@ pub struct JSONArrayWriter<'a, Writer: JSONWriter = String> {
     ///
     pub writer: &'a mut Writer,
     empty: bool,
+}
+
+/// Build a string using the `fmt::Write` impl
+pub struct StringWriter<'a, Writer: JSONWriter = String> {
+    /// The generic writer
+    pub writer: &'a mut Writer,
+}
+
+impl<'a, Writer: JSONWriter> StringWriter<'a, Writer> {
+    /// Creates a new StringWriter that writes to the given buffer. Writes '"' to the buffer immediately.
+    pub fn new(writer: &mut Writer) -> StringWriter<'_, Writer> {
+        writer.json_begin_string();
+        StringWriter { writer }
+    }
+}
+
+impl<'a, Writer: JSONWriter> fmt::Write for StringWriter<'a, Writer> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.writer.json_fragment(s);
+        Ok(())
+    }
+}
+
+impl<'a, Writer: JSONWriter> Drop for StringWriter<'_, Writer> {
+    fn drop(&mut self) {
+        self.writer.json_end_string()
+    }
 }
 
 #[doc(hidden)]
@@ -232,6 +261,16 @@ pub trait JSONWriter {
         self.json_fragment("]");
     }
 
+    /// Called at the start of writing a string. Writes the opening double-quote.
+    fn json_begin_string(&mut self) {
+        self.json_fragment("\"");
+    }
+
+    /// Called at the end of writing a string. Writes the closing double-quote.
+    fn json_end_string(&mut self) {
+        self.json_fragment("\"");
+    }
+
     /// Called before each key-value pair in an object and each item in an array.
     ///
     #[inline(always)]
@@ -304,6 +343,13 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     pub fn value<T: JSONWriterValue>(&mut self, key: &str, value: T) {
         self.write_key(key);
         value.write_json(self.writer);
+    }
+
+    /// Write string with the given key, where the body of the string is built up using the
+    /// `StringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
+    pub fn string_writer(&mut self, key: &str) -> StringWriter<'_, W> {
+        self.write_key(key);
+        StringWriter::new(&mut self.writer)
     }
 
     ///
@@ -511,6 +557,41 @@ impl JSONWriter for String {
         }
         write_string(self, key);
         self.push(':');
+    }
+
+    fn json_null(&mut self) {
+        self.json_fragment("null");
+    }
+
+    fn json_bool(&mut self, value: bool) {
+        self.json_fragment(if value { "true" } else { "false" });
+    }
+
+    fn json_number_f64(&mut self, value: f64) {
+        if !value.is_finite() {
+            // JSON does not allow infinite or nan values. In browsers JSON.stringify(Number.NaN) = "null"
+            self.json_null();
+            return;
+        }
+
+        let mut buf = ryu::Buffer::new();
+        let mut result = buf.format_finite(value);
+        if result.ends_with(".0") {
+            result = unsafe { result.get_unchecked(..result.len() - 2) };
+        }
+        self.json_number_str(result);
+    }
+
+    fn json_number_str(&mut self, value: &str) {
+        self.json_fragment(value);
+    }
+
+    fn json_begin_string(&mut self) {
+        self.json_fragment("\"");
+    }
+
+    fn json_end_string(&mut self) {
+        self.json_fragment("\"");
     }
 }
 
@@ -837,6 +918,7 @@ const fn get_replacements() -> [u8; 256] {
     result[0] = b'u';
     return result;
 }
+
 static REPLACEMENTS: [u8; 256] = get_replacements();
 static HEX: [u8; 16] = *b"0123456789ABCDEF";
 
@@ -1053,6 +1135,28 @@ mod tests {
             &object_str,
             "{\"number\":42,\"slice\":[1,2,3,4],\"array\":[42,\"?\"],\"object\":{}}"
         );
+    }
+
+    #[test]
+    fn test_string_writer() {
+        use core::fmt::Write;
+
+        let mut object_str = String::new();
+
+        {
+            let mut object_writer = JSONObjectWriter::new(&mut object_str);
+
+            let name = "zenora";
+            let color = "yellow";
+            object_writer.value("name", name);
+            let mut w = object_writer.string_writer("compound");
+            write!(w, "{name} : {color}").unwrap();
+        }
+
+        assert_eq!(
+            &object_str,
+            r#"{"name":"zenora","compound":"zenora : yellow"}"#
+        )
     }
 
     #[test]
