@@ -930,6 +930,7 @@ mod tests {
         assert_eq!(to_json_string(&map), "{\"a\":\"a\"}");
     }
 
+    #[allow(clippy::approx_constant)]
     #[test]
     fn test_numbers() {
         // unsigned
@@ -964,9 +965,9 @@ mod tests {
         );
 
         assert_eq!(to_json_string(1.0 / 0.0), "null");
-        assert_eq!(to_json_string(std::f64::INFINITY), "null");
-        assert_eq!(to_json_string(std::f64::NEG_INFINITY), "null");
-        assert_eq!(to_json_string(std::f64::NAN), "null");
+        assert_eq!(to_json_string(f64::INFINITY), "null");
+        assert_eq!(to_json_string(f64::NEG_INFINITY), "null");
+        assert_eq!(to_json_string(f64::NAN), "null");
     }
 
     #[test]
@@ -1003,6 +1004,7 @@ mod tests {
         assert_eq!(&object_str, "{\"number\":42}");
     }
 
+    #[allow(clippy::approx_constant)]
     #[test]
     fn test_misc_examples() {
         // Values
