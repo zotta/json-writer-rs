@@ -168,7 +168,6 @@ pub struct Null();
 ///
 pub trait JSONWriter {
     /// Writes null
-    #[inline(always)]
     fn json_null(&mut self) {
         self.json_fragment("null");
     }
@@ -182,7 +181,6 @@ pub trait JSONWriter {
     fn json_string(&mut self, value: &str);
 
     /// Converts number to string and writes it. Writes null for NaN and infinity
-    #[inline(never)]
     fn json_number_f64(&mut self, value: f64) {
         if !value.is_finite() {
             // JSON does not allow infinite or nan values. In browsers JSON.stringify(Number.NaN) = "null"
@@ -199,13 +197,11 @@ pub trait JSONWriter {
     }
 
     /// Writes a number that has already been converted to string
-    #[inline(always)]
     fn json_number_str(&mut self, value: &str) {
         self.json_fragment(value);
     }
 
     /// Called at the start of writing an object. Writes the opening bracket
-    #[inline(always)]
     fn json_begin_object(&mut self) {
         self.json_fragment("{");
     }
@@ -213,13 +209,11 @@ pub trait JSONWriter {
     /// Called after writing all key-value pairs of an object.
     ///
     /// `empty` is `true` when the object contains no key-value pairs.
-    #[inline(always)]
     fn json_end_object(&mut self, _empty: bool) {
         self.json_fragment("}");
     }
 
     /// Called at the start of writing an array.
-    #[inline(always)]
     fn json_begin_array(&mut self) {
         self.json_fragment("[");
     }
@@ -227,14 +221,12 @@ pub trait JSONWriter {
     /// Called after writing all items of an array.
     ///
     /// `empty` is `true` when the array contains no items.
-    #[inline(always)]
     fn json_end_array(&mut self, _empty: bool) {
         self.json_fragment("]");
     }
 
     /// Called before each key-value pair in an object and each item in an array.
     ///
-    #[inline(always)]
     fn json_begin_array_value(&mut self, first: bool) {
         if !first {
             self.json_fragment(",");
@@ -242,7 +234,6 @@ pub trait JSONWriter {
     }
 
     /// writes a comma when not first entry, escapes and writes the key and a colon
-    #[inline(never)]
     fn json_object_key(&mut self, key: &str, first: bool) {
         if !first {
             self.json_fragment(",");
@@ -266,7 +257,6 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     ///
     /// Creates a new JSONObjectWriter that writes to the given buffer. Writes '{' to the buffer immediately.
     ///
-    #[inline(always)]
     pub fn new<'a>(writer: &'a mut W) -> JSONObjectWriter<'a, W> {
         writer.json_begin_object();
         JSONObjectWriter {
@@ -280,7 +270,6 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     ///
     /// Esacapes key, writes "\"key\":{" and returns a JSONObjectWriter
     ///
-    #[inline(always)]
     pub fn object<'a>(&'a mut self, key: &str) -> JSONObjectWriter<'a, W> {
         self.write_key(key);
         JSONObjectWriter::new(self.writer)
@@ -291,7 +280,6 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     ///
     /// Esacapes key, writes "\"key\":[" and returns a JSONArrayWriter.
     ///
-    #[inline(always)]
     pub fn array<'a>(&'a mut self, key: &str) -> JSONArrayWriter<'a, W> {
         self.write_key(key);
         JSONArrayWriter::new(self.writer)
@@ -300,7 +288,6 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     ///
     /// Escapes and appends key:value to the buffer
     ///
-    #[inline(always)]
     pub fn value<T: JSONWriterValue>(&mut self, key: &str, value: T) {
         self.write_key(key);
         value.write_json(self.writer);
@@ -325,7 +312,6 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     /// Drops the writer.
     /// Dropping causes '}' to be appended to the buffer.
     ///
-    #[inline(always)]
     pub fn end(self) {
         drop(self);
     }
@@ -335,7 +321,6 @@ impl JSONObjectWriter<'_, String> {
     ///
     /// Writes the entire buffer to given writer and clears entire buffer on success.
     ///
-    #[inline(always)]
     pub fn output_buffered_data<Writer: std::io::Write>(
         &mut self,
         writer: &mut Writer,
@@ -346,14 +331,12 @@ impl JSONObjectWriter<'_, String> {
     ///
     /// Returns buffer length in bytes
     ///
-    #[inline(always)]
     pub fn buffer_len(&self) -> usize {
         self.writer.len()
     }
 }
 
 impl<'a, W: JSONWriter> Drop for JSONObjectWriter<'a, W> {
-    #[inline(always)]
     fn drop(&mut self) {
         self.writer.json_end_object(self.empty)
     }
@@ -363,7 +346,6 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     /// Creates a new JSONArrayWriter that writes to the given buffer. Writes '[' to the buffer immediately.
     ///
-    #[inline(always)]
     pub fn new<'a>(writer: &'a mut W) -> JSONArrayWriter<'a, W> {
         writer.json_begin_array();
         JSONArrayWriter {
@@ -377,7 +359,6 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     /// Writes '{' and returns a JSONObjectWriter
     ///
-    #[inline(always)]
     pub fn object<'a>(&'a mut self) -> JSONObjectWriter<'a, W> {
         self.write_comma();
         JSONObjectWriter::new(self.writer)
@@ -388,7 +369,6 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     /// Writes '[' and returns a JSONArrayWriter
     ///
-    #[inline(always)]
     pub fn array<'a>(&'a mut self) -> JSONArrayWriter<'a, W> {
         self.write_comma();
         JSONArrayWriter::new(self.writer)
@@ -397,7 +377,6 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     /// Writes given value as array entry
     ///
-    #[inline(always)]
     pub fn value<T: JSONWriterValue>(&mut self, value: T) {
         self.write_comma();
         value.write_json(self.writer);
@@ -420,14 +399,12 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Drops the writer.
     /// Dropping causes ']' to be appended to the buffer.
     ///
-    #[inline(always)]
     pub fn end(self) {
         drop(self)
     }
 }
 
 impl<W: JSONWriter> Drop for JSONArrayWriter<'_, W> {
-    #[inline(always)]
     fn drop(&mut self) {
         self.writer.json_end_array(self.empty)
     }
@@ -437,7 +414,6 @@ impl JSONArrayWriter<'_, String> {
     ///
     /// Writes the entire buffer to given writer and clears entire buffer on success.
     ///
-    #[inline(always)]
     pub fn output_buffered_data<Writer: std::io::Write>(
         &mut self,
         writer: &mut Writer,
@@ -448,25 +424,21 @@ impl JSONArrayWriter<'_, String> {
     ///
     /// Returns buffer length in bytes
     ///
-    #[inline(always)]
     pub fn buffer_len(&self) -> usize {
         self.writer.len()
     }
 }
 
 impl JSONWriter for String {
-    #[inline(always)]
     fn json_string(&mut self, value: &str) {
         write_string(self, value);
     }
 
-    #[inline(always)]
     fn json_fragment(&mut self, value: &str) {
         self.push_str(value);
     }
 
     /// Called at the start of writing an object.
-    #[inline(always)]
     fn json_begin_object(&mut self) {
         self.push('{');
     }
@@ -474,13 +446,11 @@ impl JSONWriter for String {
     /// Called after writing all key-value pairs of an object.
     ///
     /// `empty` is `true` when the object contains no key-value pairs.
-    #[inline(always)]
     fn json_end_object(&mut self, _empty: bool) {
         self.push('}');
     }
 
     /// Called at the start of writing an array.
-    #[inline(always)]
     fn json_begin_array(&mut self) {
         self.push('[');
     }
@@ -488,14 +458,12 @@ impl JSONWriter for String {
     /// Called after writing all items of an array.
     ///
     /// `empty` is `true` when the array contains no items.
-    #[inline(always)]
     fn json_end_array(&mut self, _empty: bool) {
         self.push(']');
     }
 
     /// Called before each key-value pair in an object and each item in an array.
     ///
-    #[inline(always)]
     fn json_begin_array_value(&mut self, first: bool) {
         if !first {
             self.push(',');
@@ -504,7 +472,6 @@ impl JSONWriter for String {
 
     /// Called before each key-value pair in an object and each item in an array.
     ///
-    #[inline(always)]
     fn json_object_key(&mut self, key: &str, first: bool) {
         if !first {
             self.push(',');
@@ -610,42 +577,36 @@ pub trait JSONWriterValue {
 }
 
 impl JSONWriterValue for &str {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         writer.json_string(self);
     }
 }
 
 impl JSONWriterValue for &std::borrow::Cow<'_, str> {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         writer.json_string(std::convert::AsRef::as_ref(self));
     }
 }
 
 impl JSONWriterValue for &String {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         writer.json_string(self);
     }
 }
 
 impl JSONWriterValue for f64 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         writer.json_number_f64(self);
     }
 }
 
 impl JSONWriterValue for f32 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         writer.json_number_f64(self as f64);
     }
 }
 
 impl JSONWriterValue for u32 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         let mut buf = itoa::Buffer::new();
         writer.json_number_str(buf.format(self));
@@ -653,14 +614,12 @@ impl JSONWriterValue for u32 {
 }
 
 impl JSONWriterValue for i32 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         let mut buf = itoa::Buffer::new();
         writer.json_number_str(buf.format(self));
     }
 }
 impl JSONWriterValue for u16 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         let mut buf = itoa::Buffer::new();
         writer.json_number_str(buf.format(self));
@@ -668,7 +627,6 @@ impl JSONWriterValue for u16 {
 }
 
 impl JSONWriterValue for i16 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         let mut buf = itoa::Buffer::new();
         writer.json_number_str(buf.format(self));
@@ -676,7 +634,6 @@ impl JSONWriterValue for i16 {
 }
 
 impl JSONWriterValue for u8 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         let mut buf = itoa::Buffer::new();
         writer.json_number_str(buf.format(self));
@@ -684,7 +641,6 @@ impl JSONWriterValue for u8 {
 }
 
 impl JSONWriterValue for i8 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         let mut buf = itoa::Buffer::new();
         writer.json_number_str(buf.format(self));
@@ -692,28 +648,24 @@ impl JSONWriterValue for i8 {
 }
 
 impl JSONWriterValue for bool {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         writer.json_bool(self);
     }
 }
 
 impl JSONWriterValue for Null {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         writer.json_null();
     }
 }
 
 impl<T: JSONWriterValue + Copy> JSONWriterValue for &T {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         (*self).write_json(writer);
     }
 }
 
 impl<T: JSONWriterValue> JSONWriterValue for Option<T> {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         match self {
             None => {
@@ -730,7 +682,6 @@ impl<Item> JSONWriterValue for &Vec<Item>
 where
     for<'b> &'b Item: JSONWriterValue,
 {
-    #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         self.as_slice().write_json(writer);
     }
@@ -775,7 +726,6 @@ where
 ///
 /// Converts given value to a json string.
 ///
-#[inline]
 pub fn to_json_string<T: JSONWriterValue>(v: T) -> String {
     let mut result = String::new();
     v.write_json(&mut result);
@@ -799,7 +749,6 @@ fn output_buffer_to<Writer: std::io::Write>(
 ///
 /// Quotes and escapes input and appends result to output buffer
 ///
-#[inline(never)]
 pub fn write_string(output_buffer: &mut String, input: &str) {
     output_buffer.push('"');
     write_part_of_string_impl(output_buffer, input);
@@ -809,7 +758,6 @@ pub fn write_string(output_buffer: &mut String, input: &str) {
 ///
 /// Escapes input and appends result to output buffer without adding quotes.
 ///
-#[inline(never)]
 pub fn write_part_of_string(output_buffer: &mut String, input: &str) {
     write_part_of_string_impl(output_buffer, input);
 }
@@ -843,7 +791,6 @@ static HEX: [u8; 16] = *b"0123456789ABCDEF";
 ///
 /// Escapes and append part of string
 ///
-#[inline(always)]
 fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
     // All of the relevant characters are in the ansi range (<128).
     // This means we can safely ignore any utf-8 characters and iterate over the bytes directly
