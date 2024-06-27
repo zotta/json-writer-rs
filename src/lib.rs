@@ -313,7 +313,7 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     ///
     /// <p style="background:rgba(255,181,77,0.16);padding:0.75em;">
     /// <strong>Warning:</strong>
-    /// If you use this method, you will have to write the value to the buffer youself afterwards.
+    /// If you use this method, you will have to write the value to the buffer yourself afterwards.
     /// </p>
     ///
     pub fn write_key(&mut self, key: &str) {
@@ -408,7 +408,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     /// <p style="background:rgba(255,181,77,0.16);padding:0.75em;">
     /// <strong>Warning:</strong>
-    /// If you use this method, you will have to write the value to the buffer youself afterwards.
+    /// If you use this method, you will have to write the value to the buffer yourself afterwards.
     /// </p>
     ///
     pub fn write_comma(&mut self) {
@@ -888,7 +888,7 @@ fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
         let replacement = REPLACEMENTS[cur_byte as usize];
         if replacement != 0 {
             if num_bytes_written < index {
-                // Checks can be ommitted here:
+                // Checks can be omitted here:
                 // We know that index is smaller than the output_buffer length.
                 // We also know that num_bytes_written is smaller than index
                 // We also know that the boundaries are not in the middle of an utf-8 multi byte sequence, because those characters are not escaped
@@ -903,11 +903,11 @@ fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
                     HEX[((cur_byte / 16) & 0xF) as usize],
                     HEX[(cur_byte & 0xF) as usize],
                 ];
-                // Checks can be ommitted here: We know bytes is a valid utf-8 string (see above)
+                // Checks can be omitted here: We know bytes is a valid utf-8 string (see above)
                 output_buffer.push_str(unsafe { std::str::from_utf8_unchecked(&bytes) });
             } else {
                 let bytes: [u8; 2] = [b'\\', replacement];
-                // Checks can be ommitted here: We know bytes is a valid utf-8 string, because the replacement table only contains characters smaller than 128
+                // Checks can be omitted here: We know bytes is a valid utf-8 string, because the replacement table only contains characters smaller than 128
                 output_buffer.push_str(unsafe { std::str::from_utf8_unchecked(&bytes) });
             }
             num_bytes_written = index + 1;
@@ -915,7 +915,7 @@ fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
         index += 1;
     }
     if num_bytes_written < bytes.len() {
-        // Checks can be ommitted here:
+        // Checks can be omitted here:
         // We know that num_bytes_written is smaller than index
         // We also know that num_bytes_written not in the middle of an utf-8 multi byte sequence, because those are not escaped
         output_buffer.push_str(unsafe { input.get_unchecked(num_bytes_written..bytes.len()) });
