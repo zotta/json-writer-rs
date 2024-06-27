@@ -353,7 +353,7 @@ impl JSONObjectWriter<'_, String> {
 impl<'a, W: JSONWriter> Drop for JSONObjectWriter<'a, W> {
     #[inline(always)]
     fn drop(&mut self) {
-        self.writer.json_end_object(self.empty)
+        self.writer.json_end_object(self.empty);
     }
 }
 
@@ -420,14 +420,14 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     #[inline(always)]
     pub fn end(self) {
-        drop(self)
+        drop(self);
     }
 }
 
 impl<W: JSONWriter> Drop for JSONArrayWriter<'_, W> {
     #[inline(always)]
     fn drop(&mut self) {
-        self.writer.json_end_array(self.empty)
+        self.writer.json_end_array(self.empty);
     }
 }
 
@@ -584,12 +584,12 @@ impl JSONWriter for PrettyJSONWriter<'_> {
     fn json_object_key(&mut self, key: &str, first: bool) {
         self.buffer.push_str(if first { "\n" } else { ",\n" });
         self.write_indent();
-        crate::write_string(self.buffer, key);
+        write_string(self.buffer, key);
         self.buffer.push_str(": ");
     }
 
     fn json_string(&mut self, value: &str) {
-        crate::write_string(self.buffer, value);
+        write_string(self.buffer, value);
     }
 
     fn json_fragment(&mut self, value: &str) {
@@ -617,7 +617,7 @@ impl JSONWriterValue for &str {
 impl JSONWriterValue for &std::borrow::Cow<'_, str> {
     #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
-        writer.json_string(std::convert::AsRef::as_ref(self));
+        writer.json_string(AsRef::as_ref(self));
     }
 }
 
@@ -777,7 +777,7 @@ where
 pub fn to_json_string<T: JSONWriterValue>(v: T) -> String {
     let mut result = String::new();
     v.write_json(&mut result);
-    result
+    return result;
 }
 
 fn output_buffer_to<Writer: std::io::Write>(
@@ -834,8 +834,9 @@ const fn get_replacements() -> [u8; 256] {
     result[b'\t' as usize] = b't';
     result[0] = b'u';
 
-    result
+    return result;
 }
+
 static REPLACEMENTS: [u8; 256] = get_replacements();
 static HEX: [u8; 16] = *b"0123456789ABCDEF";
 

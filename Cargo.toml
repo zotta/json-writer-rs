@@ -13,24 +13,24 @@ repository = "https://github.com/zotta/json-writer-rs"
 itoa = "1.0.6"
 ryu = "1.0.13"
 
-[workspace.lints.rust]
+[lints.rust]
 dead_code = "warn"
-future_incompatible = "warn"
-let_underscore = "warn"
+future_incompatible = { level = "warn", priority = -1 }
+let_underscore = { level = "warn", priority = -1 }
 nonstandard-style = "warn"
-rust_2021_compatibility = "warn"
+rust_2021_compatibility = { level = "warn", priority = -1 }
 trivial_casts = "warn"
 trivial_numeric_casts = "warn"
-rust_2018_compatibility = "warn"
-rust_2018_idioms = "warn"
+rust_2018_compatibility = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
 semicolon_in_expressions_from_macros = "warn"
 unreachable_pub = "warn"
-unsafe_code = "warn"
+unsafe_code = "allow"
 unused_import_braces = "warn"
 unused_lifetimes = "warn"
 unused_macro_rules = "warn"
 unused_qualifications = "warn"
-unused = "warn"
+unused = { level = "warn", priority = -1 }
 
 # This list is based off Embarks clippy list
 #
@@ -38,7 +38,7 @@ unused = "warn"
 #
 # You can lookup the motivation for each clippy here:
 # https://rust-lang.github.io/rust-clippy/master/index.html
-[workspace.lints.clippy]
+[lints.clippy]
 complexity = { level = "warn", priority = -1 }
 correctness = { level = "deny", priority = -1 }
 perf = { level = "deny", priority = -1 }
@@ -87,7 +87,6 @@ match_same_arms = "warn"
 match_wildcard_for_single_variants = "warn"
 match_wild_err_arm = "warn"
 mem_forget = "warn"
-missing_docs = "warn"
 mismatched_target_os = "warn"
 missing_enforced_import_renames = "warn"
 mutex_integer = "warn"
@@ -95,6 +94,7 @@ mut_mut = "warn"
 needless_continue = "warn"
 needless_for_each = "warn"
 needless_pass_by_value = "warn"
+needless_return = "allow"
 option_option = "warn"
 path_buf_push_overwrite = "warn"
 ptr_as_ptr = "warn"
