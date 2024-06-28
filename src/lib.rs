@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 //!
 //! Simple and fast crate for writing JSON to a string without creating intermediate objects.
 //!
@@ -11,8 +9,8 @@
 //! let number: i32 = 42;
 //! let mut object_str = String::new();
 //! {
-//! 	let mut object_writer = JSONObjectWriter::new(&mut object_str);
-//! 	object_writer.value("number", number);
+//!     let mut object_writer = JSONObjectWriter::new(&mut object_str);
+//!     object_writer.value("number", number);
 //! }
 //! assert_eq!(&object_str, "{\"number\":42}");
 //! ```
@@ -76,19 +74,19 @@
 //! ```
 //! use json_writer::JSONArrayWriter;
 //! fn write_numbers(file: &mut std::fs::File) -> std::io::Result<()> {
-//! 	let mut buffer = String::new();
-//! 	let mut array = JSONArrayWriter::new(&mut buffer);
-//! 	for i in 1i32 ..= 1000000i32 {
-//! 		array.value(i);
-//! 		if array.buffer_len() > 2000 {
-//! 			// Manual flush
-//! 			array.output_buffered_data(file)?;
-//! 		}
-//! 	}
-//! 	array.end();
-//! 	std::io::Write::write_all(file, buffer.as_bytes())?;
+//!     let mut buffer = String::new();
+//!     let mut array = JSONArrayWriter::new(&mut buffer);
+//!     for i in 1i32 ..= 1000000i32 {
+//!         array.value(i);
+//!         if array.buffer_len() > 2000 {
+//!             // Manual flush
+//!             array.output_buffered_data(file)?;
+//!         }
+//!     }
+//!     array.end();
+//!     std::io::Write::write_all(file, buffer.as_bytes())?;
 //!
-//! 	return Ok(());
+//!     return Ok(());
 //! }
 //! ```
 //!
@@ -115,9 +113,9 @@
 //! use json_writer::JSONObjectWriter;
 //! let mut object_str = String::new();
 //! {
-//! 	let mut object_writer = JSONObjectWriter::new(&mut object_str);
-//! 	object_writer.value("number", 42i32);
-//! 	object_writer.value("number", 43i32);
+//!     let mut object_writer = JSONObjectWriter::new(&mut object_str);
+//!     object_writer.value("number", 42i32);
+//!     object_writer.value("number", 43i32);
 //! }
 //! assert_eq!(&object_str, "{\"number\":42,\"number\":43}");
 //! ```
@@ -314,7 +312,7 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     /// Creates a new JSONObjectWriter that writes to the given buffer. Writes '{' to the buffer immediately.
     ///
     #[inline(always)]
-    pub fn new<'a>(writer: &'a mut W) -> JSONObjectWriter<'a, W> {
+    pub fn new(writer: &mut W) -> JSONObjectWriter<'_, W> {
         writer.json_begin_object();
         JSONObjectWriter {
             writer,
@@ -409,7 +407,7 @@ impl JSONObjectWriter<'_, String> {
 impl<'a, W: JSONWriter> Drop for JSONObjectWriter<'a, W> {
     #[inline(always)]
     fn drop(&mut self) {
-        self.writer.json_end_object(self.empty)
+        self.writer.json_end_object(self.empty);
     }
 }
 
@@ -418,7 +416,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Creates a new JSONArrayWriter that writes to the given buffer. Writes '[' to the buffer immediately.
     ///
     #[inline(always)]
-    pub fn new<'a>(writer: &'a mut W) -> JSONArrayWriter<'a, W> {
+    pub fn new(writer: &mut W) -> JSONArrayWriter<'_, W> {
         writer.json_begin_array();
         JSONArrayWriter {
             writer,
@@ -432,7 +430,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Writes '{' and returns a JSONObjectWriter
     ///
     #[inline(always)]
-    pub fn object<'a>(&'a mut self) -> JSONObjectWriter<'a, W> {
+    pub fn object(&mut self) -> JSONObjectWriter<'_, W> {
         self.write_comma();
         JSONObjectWriter::new(self.writer)
     }
@@ -443,7 +441,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Writes '[' and returns a JSONArrayWriter
     ///
     #[inline(always)]
-    pub fn array<'a>(&'a mut self) -> JSONArrayWriter<'a, W> {
+    pub fn array(&mut self) -> JSONArrayWriter<'_, W> {
         self.write_comma();
         JSONArrayWriter::new(self.writer)
     }
@@ -483,14 +481,14 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     #[inline(always)]
     pub fn end(self) {
-        drop(self)
+        drop(self);
     }
 }
 
 impl<W: JSONWriter> Drop for JSONArrayWriter<'_, W> {
     #[inline(always)]
     fn drop(&mut self) {
-        self.writer.json_end_array(self.empty)
+        self.writer.json_end_array(self.empty);
     }
 }
 
@@ -617,7 +615,7 @@ pub struct PrettyJSONWriter<'a> {
 
 impl PrettyJSONWriter<'_> {
     /// Creates a new human-readable formatter with two spaces for indentation.
-    pub fn new<'a>(buffer: &'a mut String) -> PrettyJSONWriter<'a> {
+    pub fn new(buffer: &mut String) -> PrettyJSONWriter<'_> {
         // Same default as serde_json::ser::PrettyFormatter
         PrettyJSONWriter {
             buffer,
@@ -679,12 +677,12 @@ impl JSONWriter for PrettyJSONWriter<'_> {
     fn json_object_key(&mut self, key: &str, first: bool) {
         self.buffer.push_str(if first { "\n" } else { ",\n" });
         self.write_indent();
-        crate::write_string(&mut self.buffer, key);
+        write_string(self.buffer, key);
         self.buffer.push_str(": ");
     }
 
     fn json_string(&mut self, value: &str) {
-        crate::write_string(&mut self.buffer, value);
+        write_string(self.buffer, value);
     }
 
     fn json_string_part(&mut self, value: &str) {
@@ -716,7 +714,7 @@ impl JSONWriterValue for &str {
 impl JSONWriterValue for &std::borrow::Cow<'_, str> {
     #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
-        writer.json_string(std::convert::AsRef::as_ref(self));
+        writer.json_string(AsRef::as_ref(self));
     }
 }
 
@@ -965,6 +963,7 @@ const fn get_replacements() -> [u8; 256] {
     result[b'\r' as usize] = b'r';
     result[b'\t' as usize] = b't';
     result[0] = b'u';
+
     return result;
 }
 
@@ -1062,6 +1061,7 @@ mod tests {
         assert_eq!(to_json_string(&map), "{\"a\":\"a\"}");
     }
 
+    #[allow(clippy::approx_constant)]
     #[test]
     fn test_numbers() {
         // unsigned
@@ -1103,9 +1103,9 @@ mod tests {
         );
 
         assert_eq!(to_json_string(1.0 / 0.0), "null");
-        assert_eq!(to_json_string(std::f64::INFINITY), "null");
-        assert_eq!(to_json_string(std::f64::NEG_INFINITY), "null");
-        assert_eq!(to_json_string(std::f64::NAN), "null");
+        assert_eq!(to_json_string(f64::INFINITY), "null");
+        assert_eq!(to_json_string(f64::NEG_INFINITY), "null");
+        assert_eq!(to_json_string(f64::NAN), "null");
     }
 
     #[test]
@@ -1142,6 +1142,7 @@ mod tests {
         assert_eq!(&object_str, "{\"number\":42}");
     }
 
+    #[allow(clippy::approx_constant)]
     #[test]
     fn test_misc_examples() {
         // Values
