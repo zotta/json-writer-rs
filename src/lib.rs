@@ -272,7 +272,9 @@ pub trait JSONWriter {
         self.json_fragment("]");
     }
 
-    /// Called at the start of writing a string. Writes the opening double-quote.
+    /// Writes a double-quote.
+    ///
+    /// Called at the start and end of writing a string.
     fn json_delimit_string(&mut self) {
         self.json_fragment("\"");
     }
@@ -353,9 +355,9 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
 
     /// Write string with the given key, where the body of the string is built up using the
     /// `StringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
-    pub fn string_writer<'a>(&'a mut self, key: &str) -> StringWriter<'a, W> {
+    pub fn string_writer(&mut self, key: &str) -> StringWriter<'_, W> {
         self.write_key(key);
-        StringWriter::new(&mut self.writer)
+        StringWriter::new(self.writer)
     }
 
     ///
@@ -457,9 +459,9 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
 
     /// Write string with the given key, where the body of the string is built up using the
     /// `StringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
-    pub fn string_writer<'a>(&'a mut self) -> StringWriter<'a, W> {
+    pub fn string_writer(&mut self) -> StringWriter<'_, W> {
         self.write_comma();
-        StringWriter::new(&mut self.writer)
+        StringWriter::new(self.writer)
     }
 
     ///
@@ -602,10 +604,6 @@ impl JSONWriter for String {
 
     fn json_number_str(&mut self, value: &str) {
         self.json_fragment(value);
-    }
-
-    fn json_delimit_string(&mut self) {
-        self.json_fragment("\"");
     }
 }
 
