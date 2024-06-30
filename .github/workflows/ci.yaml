@@ -1,21 +1,61 @@
-name: ci
-on: push
-jobs:
+name: CI
+
+on: [push, pull_request]
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
+
+jobs: 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Format
-        uses: actions-rs/cargo@v1
+    - uses: actions/checkout@v3
+    - run: cargo build --all-features --verbose
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@v3
+    - run: cargo test --all-features --verbose
+
+  clippy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@v3
+    - run: cargo clippy --all-targets --all-features
+
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@v3
+    - run: cargo fmt --all --check
+
+  deny:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@v3
+    - uses: EmbarkStudios/cargo-deny-action@v1
+      with:
+        arguments: --all-features
+
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          command: fmt
-          args: --check
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-      - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
+          toolchain: stable
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: cargo doc --all-features --no-deps --document-private-items
