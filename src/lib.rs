@@ -1,4 +1,3 @@
-
 #![doc = include_str!("../README.md")]
 
 use core::fmt;
@@ -38,37 +37,41 @@ pub struct JSONArrayWriter<'a, Writer: JSONWriter = String> {
 }
 
 /// Build a string using the `fmt::Write` impl
-pub struct StringWriter<'a, Writer: JSONWriter = String> {
+pub struct JSONStringWriter<'a, Writer: JSONWriter = String> {
     /// The generic writer
     pub writer: &'a mut Writer,
 }
 
-impl<'a, Writer: JSONWriter> StringWriter<'a, Writer> {
-    /// Creates a new StringWriter that writes to the given buffer. Writes '"' to the buffer immediately.
-    pub fn new(writer: &mut Writer) -> StringWriter<'_, Writer> {
-        writer.json_delimit_string();
-        StringWriter { writer }
+impl<'a, Writer: JSONWriter> JSONStringWriter<'a, Writer> {
+    /// Creates a new JSONStringWriter that writes to the given buffer. Writes '"' to the buffer immediately.
+    #[inline(always)]
+    pub fn new(writer: &mut Writer) -> JSONStringWriter<'_, Writer> {
+        writer.json_begin_string();
+        JSONStringWriter { writer }
     }
 
     ///
-    /// Drops the StringWriter.
+    /// Drops the JSONStringWriter.
     /// Dropping causes '"' to be appended to the buffer.
     ///
+    #[inline(always)]
     pub fn end(self) {
         drop(self)
     }
 }
 
-impl<'a, Writer: JSONWriter> fmt::Write for StringWriter<'a, Writer> {
+impl<'a, Writer: JSONWriter> fmt::Write for JSONStringWriter<'a, Writer> {
+    #[inline(always)]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.writer.json_string_part(s);
         Ok(())
     }
 }
 
-impl<'a, Writer: JSONWriter> Drop for StringWriter<'_, Writer> {
+impl<Writer: JSONWriter> Drop for JSONStringWriter<'_, Writer> {
+    #[inline(always)]
     fn drop(&mut self) {
-        self.writer.json_delimit_string()
+        self.writer.json_end_string()
     }
 }
 
@@ -152,14 +155,23 @@ pub trait JSONWriter {
 
     /// Writes a double-quote.
     ///
-    /// Called at the start and end of writing a string.
-    fn json_delimit_string(&mut self) {
+    /// Called when creating a JSONStringWriter
+    #[inline(always)]
+    fn json_begin_string(&mut self) {
+        self.json_fragment("\"");
+    }
+
+    /// Writes a double-quote.
+    ///
+    /// Called when dropping a JSONStringWriter
+    #[inline(always)]
+    fn json_end_string(&mut self) {
         self.json_fragment("\"");
     }
 
     /// Called before each key-value pair in an object and each item in an array.
     ///
-    #[inline(always)]
+    #[inline]
     fn json_begin_array_value(&mut self, first: bool) {
         if !first {
             self.json_fragment(",");
@@ -167,7 +179,6 @@ pub trait JSONWriter {
     }
 
     /// writes a comma when not first entry, escapes and writes the key and a colon
-    #[inline(never)]
     fn json_object_key(&mut self, key: &str, first: bool) {
         if !first {
             self.json_fragment(",");
@@ -232,10 +243,11 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     }
 
     /// Write string with the given key, where the body of the string is built up using the
-    /// `StringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
-    pub fn string_writer(&mut self, key: &str) -> StringWriter<'_, W> {
+    /// `JSONStringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
+    #[inline(always)]
+    pub fn string_writer(&mut self, key: &str) -> JSONStringWriter<'_, W> {
         self.write_key(key);
-        StringWriter::new(self.writer)
+        JSONStringWriter::new(self.writer)
     }
 
     ///
@@ -336,10 +348,11 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     }
 
     /// Write string with the given key, where the body of the string is built up using the
-    /// `StringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
-    pub fn string_writer(&mut self) -> StringWriter<'_, W> {
+    /// `JSONStringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
+    #[inline(always)]
+    pub fn string_writer(&mut self) -> JSONStringWriter<'_, W> {
         self.write_comma();
-        StringWriter::new(self.writer)
+        JSONStringWriter::new(self.writer)
     }
 
     ///
@@ -350,6 +363,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// If you use this method, you will have to write the value to the buffer yourself afterwards.
     /// </p>
     ///
+    #[inline]
     pub fn write_comma(&mut self) {
         self.writer.json_begin_array_value(self.empty);
         self.empty = false;
@@ -439,7 +453,7 @@ impl JSONWriter for String {
 
     /// Called before each key-value pair in an object and each item in an array.
     ///
-    #[inline(always)]
+    #[inline]
     fn json_begin_array_value(&mut self, first: bool) {
         if !first {
             self.push(',');
@@ -448,7 +462,6 @@ impl JSONWriter for String {
 
     /// Called before each key-value pair in an object and each item in an array.
     ///
-    #[inline(always)]
     fn json_object_key(&mut self, key: &str, first: bool) {
         if !first {
             self.push(',');
@@ -457,31 +470,14 @@ impl JSONWriter for String {
         self.push(':');
     }
 
-    fn json_null(&mut self) {
-        self.json_fragment("null");
+    #[inline(always)]
+    fn json_begin_string(&mut self) {
+        self.push('"');
     }
 
-    fn json_bool(&mut self, value: bool) {
-        self.json_fragment(if value { "true" } else { "false" });
-    }
-
-    fn json_number_f64(&mut self, value: f64) {
-        if !value.is_finite() {
-            // JSON does not allow infinite or nan values. In browsers JSON.stringify(Number.NaN) = "null"
-            self.json_null();
-            return;
-        }
-
-        let mut buf = ryu::Buffer::new();
-        let mut result = buf.format_finite(value);
-        if result.ends_with(".0") {
-            result = unsafe { result.get_unchecked(..result.len() - 2) };
-        }
-        self.json_number_str(result);
-    }
-
-    fn json_number_str(&mut self, value: &str) {
-        self.json_fragment(value);
+    #[inline(always)]
+    fn json_end_string(&mut self) {
+        self.push('"');
     }
 }
 
@@ -721,7 +717,7 @@ impl<T: JSONWriterValue + Copy> JSONWriterValue for &T {
 }
 
 impl<T: JSONWriterValue> JSONWriterValue for Option<T> {
-    #[inline(always)]
+    #[inline]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
         match self {
             None => {
@@ -1081,13 +1077,12 @@ mod tests {
         let mut object_str = String::new();
         let mut object_writer = JSONObjectWriter::new(&mut object_str);
 
-        {
-            let name = r#"zenora "bariella""#;
-            let color = "yellow";
-            object_writer.value("name", name);
-            let mut w = object_writer.string_writer("compound");
-            write!(w, "{name} : {color}").unwrap();
-        }
+        let name = r#"zenora "bariella""#;
+        let color = "yellow";
+        object_writer.value("name", name);
+        let mut w = object_writer.string_writer("compound");
+        write!(w, "{name} : {color}").unwrap();
+        w.end();
 
         object_writer.value("number", 42i32);
 
