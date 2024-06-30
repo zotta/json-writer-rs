@@ -1,5 +1,7 @@
-#![warn(missing_docs)]
+
 #![doc = include_str!("../README.md")]
+
+use core::fmt;
 
 ///
 /// Helper for appending a JSON object to the borrowed buffer.
@@ -35,6 +37,41 @@ pub struct JSONArrayWriter<'a, Writer: JSONWriter = String> {
     empty: bool,
 }
 
+/// Build a string using the `fmt::Write` impl
+pub struct StringWriter<'a, Writer: JSONWriter = String> {
+    /// The generic writer
+    pub writer: &'a mut Writer,
+}
+
+impl<'a, Writer: JSONWriter> StringWriter<'a, Writer> {
+    /// Creates a new StringWriter that writes to the given buffer. Writes '"' to the buffer immediately.
+    pub fn new(writer: &mut Writer) -> StringWriter<'_, Writer> {
+        writer.json_delimit_string();
+        StringWriter { writer }
+    }
+
+    ///
+    /// Drops the StringWriter.
+    /// Dropping causes '"' to be appended to the buffer.
+    ///
+    pub fn end(self) {
+        drop(self)
+    }
+}
+
+impl<'a, Writer: JSONWriter> fmt::Write for StringWriter<'a, Writer> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.writer.json_string_part(s);
+        Ok(())
+    }
+}
+
+impl<'a, Writer: JSONWriter> Drop for StringWriter<'_, Writer> {
+    fn drop(&mut self) {
+        self.writer.json_delimit_string()
+    }
+}
+
 #[doc(hidden)]
 #[derive(Debug, Copy, Clone)]
 pub struct Null();
@@ -56,8 +93,11 @@ pub trait JSONWriter {
         self.json_fragment(if value { "true" } else { "false" });
     }
 
-    /// Quotes and escapes the given string and writes the result to output
+    /// Quotes and escapes the given string and writes the result to output with delimiting quotes.
     fn json_string(&mut self, value: &str);
+
+    /// Quotes and escapes the given string and writes the result to output without delimiting quotes.
+    fn json_string_part(&mut self, value: &str);
 
     /// Converts number to string and writes it. Writes null for NaN and infinity
     #[inline(never)]
@@ -110,6 +150,13 @@ pub trait JSONWriter {
         self.json_fragment("]");
     }
 
+    /// Writes a double-quote.
+    ///
+    /// Called at the start and end of writing a string.
+    fn json_delimit_string(&mut self) {
+        self.json_fragment("\"");
+    }
+
     /// Called before each key-value pair in an object and each item in an array.
     ///
     #[inline(always)]
@@ -145,7 +192,7 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     /// Creates a new JSONObjectWriter that writes to the given buffer. Writes '{' to the buffer immediately.
     ///
     #[inline(always)]
-    pub fn new<'a>(writer: &'a mut W) -> JSONObjectWriter<'a, W> {
+    pub fn new(writer: &mut W) -> JSONObjectWriter<'_, W> {
         writer.json_begin_object();
         JSONObjectWriter {
             writer,
@@ -184,6 +231,13 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
         value.write_json(self.writer);
     }
 
+    /// Write string with the given key, where the body of the string is built up using the
+    /// `StringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
+    pub fn string_writer(&mut self, key: &str) -> StringWriter<'_, W> {
+        self.write_key(key);
+        StringWriter::new(self.writer)
+    }
+
     ///
     /// Writes a key without any value.
     ///
@@ -191,7 +245,7 @@ impl<W: JSONWriter> JSONObjectWriter<'_, W> {
     ///
     /// <p style="background:rgba(255,181,77,0.16);padding:0.75em;">
     /// <strong>Warning:</strong>
-    /// If you use this method, you will have to write the value to the buffer youself afterwards.
+    /// If you use this method, you will have to write the value to the buffer yourself afterwards.
     /// </p>
     ///
     pub fn write_key(&mut self, key: &str) {
@@ -233,7 +287,7 @@ impl JSONObjectWriter<'_, String> {
 impl<'a, W: JSONWriter> Drop for JSONObjectWriter<'a, W> {
     #[inline(always)]
     fn drop(&mut self) {
-        self.writer.json_end_object(self.empty)
+        self.writer.json_end_object(self.empty);
     }
 }
 
@@ -242,7 +296,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Creates a new JSONArrayWriter that writes to the given buffer. Writes '[' to the buffer immediately.
     ///
     #[inline(always)]
-    pub fn new<'a>(writer: &'a mut W) -> JSONArrayWriter<'a, W> {
+    pub fn new(writer: &mut W) -> JSONArrayWriter<'_, W> {
         writer.json_begin_array();
         JSONArrayWriter {
             writer,
@@ -256,7 +310,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Writes '{' and returns a JSONObjectWriter
     ///
     #[inline(always)]
-    pub fn object<'a>(&'a mut self) -> JSONObjectWriter<'a, W> {
+    pub fn object(&mut self) -> JSONObjectWriter<'_, W> {
         self.write_comma();
         JSONObjectWriter::new(self.writer)
     }
@@ -267,7 +321,7 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     /// Writes '[' and returns a JSONArrayWriter
     ///
     #[inline(always)]
-    pub fn array<'a>(&'a mut self) -> JSONArrayWriter<'a, W> {
+    pub fn array(&mut self) -> JSONArrayWriter<'_, W> {
         self.write_comma();
         JSONArrayWriter::new(self.writer)
     }
@@ -281,12 +335,19 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
         value.write_json(self.writer);
     }
 
+    /// Write string with the given key, where the body of the string is built up using the
+    /// `StringWriter` that impls the `fmt::Write` trait and so can be used in the `write!` macro.
+    pub fn string_writer(&mut self) -> StringWriter<'_, W> {
+        self.write_comma();
+        StringWriter::new(self.writer)
+    }
+
     ///
     /// Writes a comma unless at the beginning of the array
     ///
     /// <p style="background:rgba(255,181,77,0.16);padding:0.75em;">
     /// <strong>Warning:</strong>
-    /// If you use this method, you will have to write the value to the buffer youself afterwards.
+    /// If you use this method, you will have to write the value to the buffer yourself afterwards.
     /// </p>
     ///
     pub fn write_comma(&mut self) {
@@ -300,14 +361,14 @@ impl<W: JSONWriter> JSONArrayWriter<'_, W> {
     ///
     #[inline(always)]
     pub fn end(self) {
-        drop(self)
+        drop(self);
     }
 }
 
 impl<W: JSONWriter> Drop for JSONArrayWriter<'_, W> {
     #[inline(always)]
     fn drop(&mut self) {
-        self.writer.json_end_array(self.empty)
+        self.writer.json_end_array(self.empty);
     }
 }
 
@@ -336,6 +397,11 @@ impl JSONWriter for String {
     #[inline(always)]
     fn json_string(&mut self, value: &str) {
         write_string(self, value);
+    }
+
+    #[inline(always)]
+    fn json_string_part(&mut self, value: &str) {
+        write_part_of_string(self, value);
     }
 
     #[inline(always)]
@@ -390,6 +456,33 @@ impl JSONWriter for String {
         write_string(self, key);
         self.push(':');
     }
+
+    fn json_null(&mut self) {
+        self.json_fragment("null");
+    }
+
+    fn json_bool(&mut self, value: bool) {
+        self.json_fragment(if value { "true" } else { "false" });
+    }
+
+    fn json_number_f64(&mut self, value: f64) {
+        if !value.is_finite() {
+            // JSON does not allow infinite or nan values. In browsers JSON.stringify(Number.NaN) = "null"
+            self.json_null();
+            return;
+        }
+
+        let mut buf = ryu::Buffer::new();
+        let mut result = buf.format_finite(value);
+        if result.ends_with(".0") {
+            result = unsafe { result.get_unchecked(..result.len() - 2) };
+        }
+        self.json_number_str(result);
+    }
+
+    fn json_number_str(&mut self, value: &str) {
+        self.json_fragment(value);
+    }
 }
 
 /// Formats JSON in a human-readable format with whitespace, newlines, and indentation.
@@ -402,7 +495,7 @@ pub struct PrettyJSONWriter<'a> {
 
 impl PrettyJSONWriter<'_> {
     /// Creates a new human-readable formatter with two spaces for indentation.
-    pub fn new<'a>(buffer: &'a mut String) -> PrettyJSONWriter<'a> {
+    pub fn new(buffer: &mut String) -> PrettyJSONWriter<'_> {
         // Same default as serde_json::ser::PrettyFormatter
         PrettyJSONWriter {
             buffer,
@@ -464,12 +557,16 @@ impl JSONWriter for PrettyJSONWriter<'_> {
     fn json_object_key(&mut self, key: &str, first: bool) {
         self.buffer.push_str(if first { "\n" } else { ",\n" });
         self.write_indent();
-        crate::write_string(&mut self.buffer, key);
+        write_string(self.buffer, key);
         self.buffer.push_str(": ");
     }
 
     fn json_string(&mut self, value: &str) {
-        crate::write_string(&mut self.buffer, value);
+        write_string(self.buffer, value);
+    }
+
+    fn json_string_part(&mut self, value: &str) {
+        write_part_of_string(self.buffer, value);
     }
 
     fn json_fragment(&mut self, value: &str) {
@@ -497,7 +594,7 @@ impl JSONWriterValue for &str {
 impl JSONWriterValue for &std::borrow::Cow<'_, str> {
     #[inline(always)]
     fn write_json<W: JSONWriter>(self, writer: &mut W) {
-        writer.json_string(std::convert::AsRef::as_ref(self));
+        writer.json_string(AsRef::as_ref(self));
     }
 }
 
@@ -746,8 +843,10 @@ const fn get_replacements() -> [u8; 256] {
     result[b'\r' as usize] = b'r';
     result[b'\t' as usize] = b't';
     result[0] = b'u';
+
     return result;
 }
+
 static REPLACEMENTS: [u8; 256] = get_replacements();
 static HEX: [u8; 16] = *b"0123456789ABCDEF";
 
@@ -766,7 +865,7 @@ fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
         let replacement = REPLACEMENTS[cur_byte as usize];
         if replacement != 0 {
             if num_bytes_written < index {
-                // Checks can be ommitted here:
+                // Checks can be omitted here:
                 // We know that index is smaller than the output_buffer length.
                 // We also know that num_bytes_written is smaller than index
                 // We also know that the boundaries are not in the middle of an utf-8 multi byte sequence, because those characters are not escaped
@@ -781,11 +880,11 @@ fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
                     HEX[((cur_byte / 16) & 0xF) as usize],
                     HEX[(cur_byte & 0xF) as usize],
                 ];
-                // Checks can be ommitted here: We know bytes is a valid utf-8 string (see above)
+                // Checks can be omitted here: We know bytes is a valid utf-8 string (see above)
                 output_buffer.push_str(unsafe { std::str::from_utf8_unchecked(&bytes) });
             } else {
                 let bytes: [u8; 2] = [b'\\', replacement];
-                // Checks can be ommitted here: We know bytes is a valid utf-8 string, because the replacement table only contains characters smaller than 128
+                // Checks can be omitted here: We know bytes is a valid utf-8 string, because the replacement table only contains characters smaller than 128
                 output_buffer.push_str(unsafe { std::str::from_utf8_unchecked(&bytes) });
             }
             num_bytes_written = index + 1;
@@ -793,7 +892,7 @@ fn write_part_of_string_impl(output_buffer: &mut String, input: &str) {
         index += 1;
     }
     if num_bytes_written < bytes.len() {
-        // Checks can be ommitted here:
+        // Checks can be omitted here:
         // We know that num_bytes_written is smaller than index
         // We also know that num_bytes_written not in the middle of an utf-8 multi byte sequence, because those are not escaped
         output_buffer.push_str(unsafe { input.get_unchecked(num_bytes_written..bytes.len()) });
@@ -842,6 +941,7 @@ mod tests {
         assert_eq!(to_json_string(&map), "{\"a\":\"a\"}");
     }
 
+    #[allow(clippy::approx_constant)]
     #[test]
     fn test_numbers() {
         // unsigned
@@ -851,11 +951,18 @@ mod tests {
         assert_eq!(to_json_string(u8::MAX), "255");
         assert_eq!(to_json_string(u16::MAX), "65535");
         assert_eq!(to_json_string(u32::MAX), "4294967295");
+        assert_eq!(to_json_string(u64::MAX), "18446744073709551615");
+        assert_eq!(
+            to_json_string(u128::MAX),
+            "340282366920938463463374607431768211455"
+        );
 
         // signed
         assert_eq!(to_json_string(-1i8), "-1");
         assert_eq!(to_json_string(-1i16), "-1");
         assert_eq!(to_json_string(-1i32), "-1");
+        assert_eq!(to_json_string(-1i64), "-1");
+        assert_eq!(to_json_string(-1i128), "-1");
 
         // float
         assert_eq!(to_json_string(0f32), "0");
@@ -876,9 +983,9 @@ mod tests {
         );
 
         assert_eq!(to_json_string(1.0 / 0.0), "null");
-        assert_eq!(to_json_string(std::f64::INFINITY), "null");
-        assert_eq!(to_json_string(std::f64::NEG_INFINITY), "null");
-        assert_eq!(to_json_string(std::f64::NAN), "null");
+        assert_eq!(to_json_string(f64::INFINITY), "null");
+        assert_eq!(to_json_string(f64::NEG_INFINITY), "null");
+        assert_eq!(to_json_string(f64::NAN), "null");
     }
 
     #[test]
@@ -915,6 +1022,7 @@ mod tests {
         assert_eq!(&object_str, "{\"number\":42}");
     }
 
+    #[allow(clippy::approx_constant)]
     #[test]
     fn test_misc_examples() {
         // Values
@@ -964,6 +1072,41 @@ mod tests {
             &object_str,
             "{\"number\":42,\"slice\":[1,2,3,4],\"array\":[42,\"?\"],\"object\":{}}"
         );
+    }
+
+    #[test]
+    fn test_string_writer() {
+        use core::fmt::Write;
+
+        let mut object_str = String::new();
+        let mut object_writer = JSONObjectWriter::new(&mut object_str);
+
+        {
+            let name = r#"zenora "bariella""#;
+            let color = "yellow";
+            object_writer.value("name", name);
+            let mut w = object_writer.string_writer("compound");
+            write!(w, "{name} : {color}").unwrap();
+        }
+
+        object_writer.value("number", 42i32);
+
+        {
+            let mut array = object_writer.array("tools");
+            let prefix = "air";
+            array.value("hammer");
+            write!(array.string_writer(), "{prefix}-hammer").unwrap();
+            write!(array.string_writer(), "{prefix}-saw").unwrap();
+        }
+
+        object_writer.end();
+
+        eprintln!("{}", object_str);
+
+        assert_eq!(
+            &object_str,
+            r#"{"name":"zenora \"bariella\"","compound":"zenora \"bariella\" : yellow","number":42,"tools":["hammer","air-hammer","air-saw"]}"#
+        )
     }
 
     #[test]
