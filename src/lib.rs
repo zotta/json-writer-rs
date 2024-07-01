@@ -906,7 +906,7 @@ mod tests {
 		array.value(0u8);
 		array.value(1i32);
 		array.value("2");
-		array.value("\"<script>1/2</script>\"");
+		array.value(r#""<script>1/2</script>""#);
 		let mut nested_arr = array.array();
 		nested_arr.value("nested");
 		nested_arr.end();
@@ -917,7 +917,10 @@ mod tests {
 		nested_obj2.end();
 		drop(array);
 
-		assert_eq!(buffer, "[0,1,\"2\",\"\\\"<script>1\\/2<\\/script>\\\"\",[\"nested\"],{\"ä\\töü\":\"ä\\töü\"},{}]");
+		assert_eq!(
+			buffer,
+			r#"[0,1,"2","\"<script>1\/2<\/script>\"",["nested"],{"ä\töü":"ä\töü"},{}]"#
+		);
 	}
 
 	#[test]
@@ -934,7 +937,7 @@ mod tests {
 	fn test_object() {
 		let mut map = std::collections::HashMap::<String, String>::new();
 		map.insert("a".to_owned(), "a".to_owned());
-		assert_eq!(to_json_string(&map), "{\"a\":\"a\"}");
+		assert_eq!(to_json_string(&map), r#"{"a":"a"}"#);
 	}
 
 	#[allow(clippy::approx_constant)]
@@ -1004,7 +1007,7 @@ mod tests {
 	fn test_strings() {
 		assert_eq!(
 			to_json_string("中文\0\x08\x09\"\\\n\r\t</script>"),
-			"\"中文\\u0000\\b\\t\\\"\\\\\\n\\r\\t<\\/script>\""
+			r#""中文\u0000\b\t\"\\\n\r\t<\/script>""#
 		);
 	}
 
@@ -1015,14 +1018,14 @@ mod tests {
 			let mut object_writer = JSONObjectWriter::new(&mut object_str);
 			object_writer.value("number", 42i32);
 		}
-		assert_eq!(&object_str, "{\"number\":42}");
+		assert_eq!(&object_str, r#"{"number":42}"#);
 	}
 
 	#[allow(clippy::approx_constant)]
 	#[test]
 	fn test_misc_examples() {
 		// Values
-		assert_eq!(to_json_string("Hello World\n"), "\"Hello World\\n\"");
+		assert_eq!(to_json_string("Hello World\n"), r#""Hello World\n""#);
 		assert_eq!(to_json_string(3.141592653589793f64), "3.141592653589793");
 		assert_eq!(to_json_string(true), "true");
 		assert_eq!(to_json_string(false), "false");
@@ -1038,12 +1041,12 @@ mod tests {
 		let numbers_vec: Vec<u8> = vec![1u8, 2u8, 3u8, 4u8];
 		assert_eq!(to_json_string(&numbers_vec), "[1,2,3,4]");
 		let strings: [&str; 4] = ["a", "b", "c", "d"];
-		assert_eq!(to_json_string(&strings[..]), "[\"a\",\"b\",\"c\",\"d\"]");
+		assert_eq!(to_json_string(&strings[..]), r#"["a","b","c","d"]"#);
 
 		// Hash-maps:
 		let mut map = std::collections::HashMap::<String, String>::new();
 		map.insert("Hello".to_owned(), "World".to_owned());
-		assert_eq!(to_json_string(&map), "{\"Hello\":\"World\"}");
+		assert_eq!(to_json_string(&map), r#"{"Hello":"World"}"#);
 
 		// Objects:
 		let mut object_str = String::new();
@@ -1066,7 +1069,7 @@ mod tests {
 		object_writer.end();
 		assert_eq!(
 			&object_str,
-			"{\"number\":42,\"slice\":[1,2,3,4],\"array\":[42,\"?\"],\"object\":{}}"
+			r#"{"number":42,"slice":[1,2,3,4],"array":[42,"?"],"object":{}}"#
 		);
 	}
 
@@ -1113,7 +1116,7 @@ mod tests {
 			object_writer.value("number", 43i32);
 		}
 		// Duplicates are not checked, this is by design!
-		assert_eq!(&object_str, "{\"number\":42,\"number\":43}");
+		assert_eq!(&object_str, r#"{"number":42,"number":43}"#);
 	}
 
 	#[test]
@@ -1148,7 +1151,7 @@ mod tests {
 		}
 		assert_eq!(
 			to_json_string("</script >\0\x1F"),
-			"\"<\\/script >\\u0000\\u001F\""
+			r#""<\/script >\u0000\u001F""#
 		);
 	}
 
