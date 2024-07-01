@@ -56,7 +56,7 @@ impl<'a, Writer: JSONWriter> JSONStringWriter<'a, Writer> {
 	///
 	#[inline(always)]
 	pub fn end(self) {
-		drop(self)
+		drop(self);
 	}
 }
 
@@ -71,7 +71,7 @@ impl<'a, Writer: JSONWriter> fmt::Write for JSONStringWriter<'a, Writer> {
 impl<Writer: JSONWriter> Drop for JSONStringWriter<'_, Writer> {
 	#[inline(always)]
 	fn drop(&mut self) {
-		self.writer.json_end_string()
+		self.writer.json_end_string();
 	}
 }
 
@@ -1101,7 +1101,7 @@ mod tests {
 		assert_eq!(
 			&object_str,
 			r#"{"name":"zenora \"bariella\"","compound":"zenora \"bariella\" : yellow","number":42,"tools":["hammer","air-hammer","air-saw"]}"#
-		)
+		);
 	}
 
 	#[test]
